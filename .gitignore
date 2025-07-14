@@ -1,0 +1,9 @@
+# Byte-compiled Python
+__pycache__/
+
+# mypy
+.mypy_cache/
+
+# Python distribution/packaging
+*.egg
+*.egg-info/
