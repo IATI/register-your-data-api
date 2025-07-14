@@ -22,7 +22,8 @@ dev = [
     "flake8-pyproject",
     "isort",
     "mypy",
-    "pip-tools"
+    "pip-tools",
+    "pytest"
 ]
 
 [tool.mypy]
