@@ -8,7 +8,7 @@ license = {file = "LICENSE"}
 description = "API for writing to the IATI Registry"
 
 dependencies = [
-    "fastapi>=0.116.0",
+    "fastapi==0.116.0",
     "pyjwt>=2.10.0",
     "python-dotenv>=1.1.1",
     "requests==2.32.4",
