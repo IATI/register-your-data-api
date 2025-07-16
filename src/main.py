@@ -6,6 +6,7 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI
 
+import register_your_data_api.exceptions
 import register_your_data_api.util as util
 
 
@@ -23,3 +24,4 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Register Your Data", lifespan=lifespan)
+register_your_data_api.exceptions.add_exception_handlers(app)
