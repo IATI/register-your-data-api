@@ -1,0 +1,14 @@
+name: Run Static Application Security Testing
+
+on: [push, pull_request]
+
+jobs:
+    analyze:
+        runs-on: ubuntu-latest
+        permissions:
+            security-events: write
+        steps:
+            - name: Perform Bandit Analysis
+              uses: PyCQA/bandit-action@v1.0.1
+              with:
+                configfile: "pyproject.toml"

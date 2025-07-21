@@ -53,9 +53,17 @@ flake8
 mypy .
 ```
 
+### Security testing
+Static Security Application Testing is performed with `bandit`.  To use this tool you must also install the development dependencies and then test with:
+
+```
+bandit -r src/
+bandit -r tests/
+```
+
 ### Versioning
 
-The version of the faking tool is set in `pyproject.toml`.  When making updates, set the version to an appropriate value.
+The version is set in `pyproject.toml`.  When making updates, set the version to an appropriate value.
 
 
 ## License

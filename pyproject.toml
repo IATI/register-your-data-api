@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "bandit[baseline]",
     "black",
     "flake8",
     "flake8-pyproject",
@@ -26,12 +27,15 @@ dev = [
     "pytest"
 ]
 
+[tool.bandit.assert_used]
+skips = ["*/tests/security/test_*.py", "*/tests/unit/test_*.py"]
+
 [tool.mypy]
 strict = true
 mypy_path = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/unit"]
+testpaths = ["tests/unit", "tests/security"]
 addopts = [
     "--import-mode=importlib"
 ]
