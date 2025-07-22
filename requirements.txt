@@ -22,6 +22,8 @@ idna==3.10
     # via
     #   anyio
     #   requests
+prometheus-client==0.22.1
+    # via register-your-data-api (pyproject.toml)
 pycparser==2.22
     # via cffi
 pydantic==2.11.7

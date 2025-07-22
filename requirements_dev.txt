@@ -75,6 +75,8 @@ platformdirs==4.3.8
     # via black
 pluggy==1.6.0
     # via pytest
+prometheus-client==0.22.1
+    # via register-your-data-api (pyproject.toml)
 pycodestyle==2.14.0
     # via flake8
 pycparser==2.22

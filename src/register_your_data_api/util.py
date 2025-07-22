@@ -3,10 +3,11 @@ import json
 import logging
 import sys
 import time
-from typing import Any, Final, TextIO
+from typing import Any, Final, TextIO, Type
 
 import dotenv
 import jwt
+from prometheus_client import Counter, Gauge, Info, disable_created_metrics
 
 from .audit import EncryptedFormatter
 
@@ -21,6 +22,7 @@ class Context:
         "AUDIT_LOG_PATH",
         "AUDIT_LOG_PUBLIC_KEY_PATH",
         "JWKS_URI",
+        "PROMETHEUS_PORT"
     ]
 
     LOG_LEVELS: Final[dict[str, int]] = {
@@ -44,11 +46,22 @@ class Context:
     _env: dict[str, Any]
     _LICENCES: dict[str, str]
 
+    _prom_metrics: dict[str, Counter | Info | Gauge]
+
     def __init__(self, logs_to_stdout: bool = False) -> None:
         self._LOGS_TO_STDOUT: Final = logs_to_stdout
         self.VERSION = importlib.metadata.version("register-your-data-api")
 
     def setup(self) -> None:  # noqa: C901
+        try:
+            disable_created_metrics()
+            self._setup_prom_metrics()
+            if isinstance(self._prom_metrics["version"], Info):
+                self._prom_metrics["version"].info({"version": self.VERSION})
+        except Exception as err:
+            print("Could not setup prom metrics")
+            raise err
+
         try:
             env_fh = open(".env", "r")
             self._load_and_validate_env(env_fh)
@@ -88,6 +101,35 @@ class Context:
             self._app_log_fh.close()
         except AttributeError:
             pass
+
+    def _setup_prom_metrics(self) -> None:
+        """Add all the prometheus metrics"""
+
+        # The first metric is setup manually so that we don't have to start with
+        # an empty dictionary for typing purposes.
+        self._prom_metrics = {"version": Info("rydapi_version", "Register Your Data API application version")}
+
+    def _add_prom_metric(
+        self,
+        name: str,
+        cls: Type[Counter] | Type[Info] | Type[Gauge] | Type[Info],
+        desc: str,
+        labels: list[str] = [],
+    ) -> None:
+        """Adds a metric to the prometheus registry, prefixing the name with the application name
+
+        Parameters
+        ----------
+        name : str
+            Name for the metric.
+        cls : Type[Counter] | Type[Info] | Type[Gauge] | Type[Info]
+            The type of metric to create.
+        desc : str
+            Description of the metric.
+        labels : list[str] | None
+            List of labels to add to this metric.
+        """
+        self._prom_metrics[name] = cls(f"rydapi_{name}", desc, labelnames=labels)
 
     def _load_and_validate_env(self, file_handle: TextIO) -> None:
         """Load .env configuration variables, augment with defaults and validate
@@ -180,3 +222,13 @@ class Context:
         jwt.jwks_client.PyJWKClient
         """
         return self._key_store
+
+    @property
+    def prom_metrics(self) -> dict[str, Counter | Info | Gauge]:
+        """Get method to access prom metrics.
+
+        Returns
+        -------
+        dict[str, Counter | Info | Gauge]
+        """
+        return self._prom_metrics
