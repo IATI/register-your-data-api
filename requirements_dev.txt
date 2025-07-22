@@ -16,12 +16,16 @@ build==1.2.2.post1
     # via pip-tools
 certifi==2025.6.15
     # via requests
+cffi==1.17.1
+    # via cryptography
 charset-normalizer==3.4.2
     # via requests
 click==8.2.1
     # via
     #   black
     #   pip-tools
+cryptography==45.0.5
+    # via register-your-data-api (pyproject.toml)
 fastapi==0.116.0
     # via register-your-data-api (pyproject.toml)
 flake8==7.3.0
@@ -73,6 +77,8 @@ pluggy==1.6.0
     # via pytest
 pycodestyle==2.14.0
     # via flake8
+pycparser==2.22
+    # via cffi
 pydantic==2.11.7
     # via fastapi
 pydantic-core==2.33.2

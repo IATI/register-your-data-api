@@ -3,10 +3,12 @@ import json
 import logging
 import sys
 import time
-from typing import Any, BinaryIO, Final, TextIO
+from typing import Any, Final, TextIO
 
 import dotenv
 import jwt
+
+from .audit import EncryptedFormatter
 
 
 class Context:
@@ -16,6 +18,8 @@ class Context:
         "ACCESS_CHECK_ENDPOINT",
         "APP_LOG_LEVEL",
         "APP_LOG_PATH",
+        "AUDIT_LOG_PATH",
+        "AUDIT_LOG_PUBLIC_KEY_PATH",
         "JWKS_URI",
     ]
 
@@ -32,6 +36,11 @@ class Context:
     _app_log_fh: TextIO
     _app_log_file_handler: logging.StreamHandler[TextIO]
 
+    _audit_logger: logging.Logger
+    _audit_log_formatter: EncryptedFormatter
+    _audit_log_fh: TextIO
+    _audit_log_file_handler: logging.StreamHandler[TextIO]
+
     _env: dict[str, Any]
     _LICENCES: dict[str, str]
 
@@ -39,7 +48,7 @@ class Context:
         self._LOGS_TO_STDOUT: Final = logs_to_stdout
         self.VERSION = importlib.metadata.version("register-your-data-api")
 
-    def setup(self) -> None:
+    def setup(self) -> None:  # noqa: C901
         try:
             env_fh = open(".env", "r")
             self._load_and_validate_env(env_fh)
@@ -54,7 +63,7 @@ class Context:
         try:
             self._setup_loggers()
         except Exception as err:
-            print(f"Could not setup loggers")
+            print("Could not setup loggers")
             raise err
 
         self._app_logger.info(f"Register Your Data {self.VERSION}")
@@ -115,6 +124,23 @@ class Context:
         self._app_log_file_handler.setFormatter(self._app_log_formatter)
         self._app_logger.addHandler(self._app_log_file_handler)
 
+        print("Setting up audit logger")
+        self._audit_logger = logging.getLogger("ryd-api-audit")
+        self._audit_logger.setLevel(logging.INFO)
+        fh = open(self._env["AUDIT_LOG_PUBLIC_KEY_PATH"], "rb")
+        self._audit_log_formatter = EncryptedFormatter(fh, fmt="%(asctime)s - %(levelname)s - %(message)s")
+        fh.close()
+        self._audit_log_formatter.default_time_format = "%Y-%m-%dT%H:%M:%S"
+        self._audit_log_formatter.default_msec_format = "%s,%03dZ"
+        self._audit_log_formatter.converter = time.gmtime
+        if not self._LOGS_TO_STDOUT:
+            self._audit_log_fh = open(self._env["AUDIT_LOG_PATH"], "w")
+            self._audit_log_file_handler = logging.StreamHandler(self._audit_log_fh)
+        else:
+            self._audit_log_file_handler = logging.StreamHandler(sys.stdout)
+        self._audit_log_file_handler.setFormatter(self._audit_log_formatter)
+        self._audit_logger.addHandler(self._audit_log_file_handler)
+
     @property
     def app_logger(self) -> logging.Logger | None:
         """Get method for the app-level logger.
@@ -124,6 +150,16 @@ class Context:
         logging.Logger
         """
         return self._app_logger
+
+    @property
+    def audit_logger(self) -> logging.Logger:
+        """Get method for the audit logger.
+
+        Returns
+        -------
+        logging.Logger
+        """
+        return self._audit_logger
 
     @property
     def env(self) -> dict[str, str]:
