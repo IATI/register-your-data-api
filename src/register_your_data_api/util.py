@@ -22,7 +22,8 @@ class Context:
         "AUDIT_LOG_PATH",
         "AUDIT_LOG_PUBLIC_KEY_PATH",
         "JWKS_URI",
-        "PROMETHEUS_PORT"
+        "PROMETHEUS_PORT",
+        "JWT_AUDIENCE",
     ]
 
     LOG_LEVELS: Final[dict[str, int]] = {
@@ -54,7 +55,7 @@ class Context:
 
     def setup(self) -> None:  # noqa: C901
         try:
-            disable_created_metrics()
+            disable_created_metrics()  # type: ignore
             self._setup_prom_metrics()
             if isinstance(self._prom_metrics["version"], Info):
                 self._prom_metrics["version"].info({"version": self.VERSION})
@@ -108,6 +109,31 @@ class Context:
         # The first metric is setup manually so that we don't have to start with
         # an empty dictionary for typing purposes.
         self._prom_metrics = {"version": Info("rydapi_version", "Register Your Data API application version")}
+
+        self._add_prom_metric(
+            "requests_auth_failed_http_header_total",
+            Counter,
+            "Number of requests received that are missing an authorisation HTTP header",
+            ["failure_mode"],
+        )
+        self._prom_metrics["requests_auth_failed_http_header_total"].labels(failure_mode="missing_auth")
+        self._prom_metrics["requests_auth_failed_http_header_total"].labels(failure_mode="malformed_auth")
+
+        self._add_prom_metric(
+            "requests_auth_failed_invalid_jwt_total",
+            Counter,
+            "Number of requests received that had an invalid JWT for some reason",
+            ["failure_mode"],
+        )
+        self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="unknown_signing_key")
+        self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="invalid_signature")
+        self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="invalid_audience")
+        self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="expired_signature")
+        self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="missing_data")
+
+        self._add_prom_metric(
+            "requests_auth_validated_jwt_total", Counter, "Number of requests received that had validated JWT"
+        )
 
     def _add_prom_metric(
         self,
