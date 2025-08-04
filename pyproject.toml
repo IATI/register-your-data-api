@@ -8,7 +8,9 @@ license = {file = "LICENSE"}
 description = "API for writing to the IATI Registry"
 
 dependencies = [
-    "fastapi>=0.116.0",
+    "cryptography==45.0.5",
+    "fastapi==0.116.0",
+    "prometheus-client>=0.22.1",
     "pyjwt>=2.10.0",
     "python-dotenv>=1.1.1",
     "requests==2.32.4",
@@ -17,20 +19,25 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "bandit[baseline]",
     "black",
     "flake8",
     "flake8-pyproject",
     "isort",
     "mypy",
-    "pip-tools"
+    "pip-tools",
+    "pytest"
 ]
+
+[tool.bandit.assert_used]
+skips = ["*/tests/security/test_*.py", "*/tests/unit/test_*.py"]
 
 [tool.mypy]
 strict = true
 mypy_path = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/unit"]
+testpaths = ["tests/unit", "tests/security"]
 addopts = [
     "--import-mode=importlib"
 ]

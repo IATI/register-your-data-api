@@ -10,14 +10,22 @@ anyio==4.9.0
     # via starlette
 certifi==2025.6.15
     # via requests
+cffi==1.17.1
+    # via cryptography
 charset-normalizer==3.4.2
     # via requests
+cryptography==45.0.5
+    # via register-your-data-api (pyproject.toml)
 fastapi==0.116.0
     # via register-your-data-api (pyproject.toml)
 idna==3.10
     # via
     #   anyio
     #   requests
+prometheus-client==0.22.1
+    # via register-your-data-api (pyproject.toml)
+pycparser==2.22
+    # via cffi
 pydantic==2.11.7
     # via fastapi
 pydantic-core==2.33.2
