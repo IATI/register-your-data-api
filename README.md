@@ -15,6 +15,27 @@ Support | [IATI Support Website](https://iatistandard.org/en/guidance/get-suppor
 
 * Python 3.12.11
 
+## Running
+
+To run the API in development mode:
+
+```
+fastapi dev src/main.py
+```
+
+### Environment variables
+
+Variable | Description
+--- | ---
+`JWKS_URI` | URI for the JWKS, typically this should be obtained from `https://api.eu.asgardeo.io/t/iati/oauth2/token/.well-known/openid-configuration` or the Asgardeo console.
+`ACCESS_CHECK_ENDPOINT` | `True` enables the `/api/v1/access_check` endpoint to enable applications to check that the API can be called using an access token.
+`APP_LOG_LEVEL` | Log level for the application
+`APP_LOG_PATH` | Location for the application log
+`AUDIT_LOG_PATH` | Location for the audit log
+`AUDIT_LOG_PUBLIC_KEY_PATH` | Path to the public key for encrypting audit logs
+`PROMETHEUS_PORT` | Port to serve Prometheus metrics at
+`JWT_AUDIENCE` | Audience that we expect to find in JWTs from the identity server
+
 ## Development
 
 ### Adding new dependencies
@@ -57,8 +78,7 @@ mypy .
 Static Security Application Testing is performed with `bandit`.  To use this tool you must also install the development dependencies and then test with:
 
 ```
-bandit -r src/
-bandit -r tests/
+bandit -c pyproject.toml -r .
 ```
 
 ### Versioning
