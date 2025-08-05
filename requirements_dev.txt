@@ -7,7 +7,10 @@
 annotated-types==0.7.0
     # via pydantic
 anyio==4.9.0
-    # via starlette
+    # via
+    #   httpx
+    #   starlette
+    #   watchfiles
 bandit==1.8.6
     # via register-your-data-api (pyproject.toml)
 black==25.1.0
@@ -15,7 +18,11 @@ black==25.1.0
 build==1.2.2.post1
     # via pip-tools
 certifi==2025.6.15
-    # via requests
+    # via
+    #   httpcore
+    #   httpx
+    #   requests
+    #   sentry-sdk
 cffi==1.17.1
     # via cryptography
 charset-normalizer==3.4.2
@@ -24,10 +31,23 @@ click==8.2.1
     # via
     #   black
     #   pip-tools
+    #   rich-toolkit
+    #   typer
+    #   uvicorn
 cryptography==45.0.5
     # via register-your-data-api (pyproject.toml)
+dnspython==2.7.0
+    # via email-validator
+email-validator==2.2.0
+    # via
+    #   fastapi
+    #   pydantic
 fastapi==0.116.0
     # via register-your-data-api (pyproject.toml)
+fastapi-cli==0.0.8
+    # via fastapi
+fastapi-cloud-cli==0.1.5
+    # via fastapi-cli
 flake8==7.3.0
     # via
     #   flake8-pyproject
@@ -38,16 +58,34 @@ gitdb==4.0.12
     # via gitpython
 gitpython==3.1.44
     # via bandit
+h11==0.16.0
+    # via
+    #   httpcore
+    #   uvicorn
+httpcore==1.0.9
+    # via httpx
+httptools==0.6.4
+    # via uvicorn
+httpx==0.28.1
+    # via
+    #   fastapi
+    #   fastapi-cloud-cli
 idna==3.10
     # via
     #   anyio
+    #   email-validator
+    #   httpx
     #   requests
 iniconfig==2.1.0
     # via pytest
 isort==6.0.1
     # via register-your-data-api (pyproject.toml)
+jinja2==3.1.6
+    # via fastapi
 markdown-it-py==3.0.0
     # via rich
+markupsafe==3.0.2
+    # via jinja2
 mccabe==0.7.0
     # via flake8
 mdurl==0.1.2
@@ -82,7 +120,9 @@ pycodestyle==2.14.0
 pycparser==2.22
     # via cffi
 pydantic==2.11.7
-    # via fastapi
+    # via
+    #   fastapi
+    #   fastapi-cloud-cli
 pydantic-core==2.33.2
     # via pydantic
 pyflakes==3.4.0
@@ -100,13 +140,32 @@ pyproject-hooks==1.2.0
 pytest==8.4.1
     # via register-your-data-api (pyproject.toml)
 python-dotenv==1.1.1
-    # via register-your-data-api (pyproject.toml)
+    # via
+    #   register-your-data-api (pyproject.toml)
+    #   uvicorn
+python-multipart==0.0.20
+    # via fastapi
 pyyaml==6.0.2
-    # via bandit
+    # via
+    #   bandit
+    #   uvicorn
 requests==2.32.4
     # via register-your-data-api (pyproject.toml)
 rich==14.0.0
-    # via bandit
+    # via
+    #   bandit
+    #   rich-toolkit
+    #   typer
+rich-toolkit==0.14.9
+    # via
+    #   fastapi-cli
+    #   fastapi-cloud-cli
+rignore==0.6.4
+    # via fastapi-cloud-cli
+sentry-sdk==2.34.1
+    # via fastapi-cloud-cli
+shellingham==1.5.4
+    # via typer
 smmap==5.0.2
     # via gitdb
 sniffio==1.3.1
@@ -115,6 +174,10 @@ starlette==0.46.2
     # via fastapi
 stevedore==5.4.1
     # via bandit
+typer==0.16.0
+    # via
+    #   fastapi-cli
+    #   fastapi-cloud-cli
 types-requests==2.32.4.20250611
     # via register-your-data-api (pyproject.toml)
 typing-extensions==4.14.1
@@ -124,13 +187,27 @@ typing-extensions==4.14.1
     #   mypy
     #   pydantic
     #   pydantic-core
+    #   rich-toolkit
+    #   typer
     #   typing-inspection
 typing-inspection==0.4.1
     # via pydantic
 urllib3==2.5.0
     # via
     #   requests
+    #   sentry-sdk
     #   types-requests
+uvicorn==0.35.0
+    # via
+    #   fastapi
+    #   fastapi-cli
+    #   fastapi-cloud-cli
+uvloop==0.21.0
+    # via uvicorn
+watchfiles==1.1.0
+    # via uvicorn
+websockets==15.0.1
+    # via uvicorn
 wheel==0.45.1
     # via pip-tools
 
