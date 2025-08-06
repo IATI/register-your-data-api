@@ -210,7 +210,7 @@ class Context:
         self._audit_logger.addHandler(self._audit_log_file_handler)
 
     @property
-    def app_logger(self) -> logging.Logger | None:
+    def app_logger(self) -> logging.Logger:
         """Get method for the app-level logger.
 
         Returns
