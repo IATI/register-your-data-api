@@ -4,9 +4,9 @@
 
  Product  | IATI Register Your Data (API) 
 --- | ---
-Description | The Register Your Data product is an API and web app design to make write changes into the new IATI Registry. 
+Description | The Register Your Data product is an API and web app design to make write changes into the new IATI Registry.  This repository contains a FastAPI application 
 Website | None 
-Related |  
+Related |
 Documentation | Rest of README.md
 Technical Issues | [GitHub issues page](https://github.com/IATI/register-your-data-api/issues) 
 Support | [IATI Support Website](https://iatistandard.org/en/guidance/get-support/) 
@@ -14,27 +14,74 @@ Support | [IATI Support Website](https://iatistandard.org/en/guidance/get-suppor
 ## High-level requirements
 
 * Python 3.12.11
+* Docker
+* OpenSSL (or similar) to generate public/private key pairs for the audit log (on a local development instance, if necessary).
 
 ## Running
 
-To run the API in development mode:
+### Overview
+
+Currently, the API application requires the following resources to run:
+
+* A JSON Web Key Set server: the configuration details for the production server can be obtained from `https://api.eu.asgardeo.io/t/iati/oauth2/token/.well-known/openid-configuration` but in the future we should define a local IDP, such as [SIOCODE-Open/local-idp](https://github.com/SIOCODE-Open/local-idp), for local development and/or integration testing.
+* Public/private key pair to encrypt the audit log (only the public key is required for running the application).  These can be generated with OpenSSL using `openssl genrsa -out private-key.pem 4096 && openssl rsa -in private-key.pem -pubout -out public-key.pem`.
+* `.env` configuration file (see `.env.example` and a description of the variables below).
+
+The API application is NOT currently wired up to the CRM.
+
+### Configuration
+
+The application is configured using a set of environment variables in a `.env` file.  The application looks in the current directory for this file.
+
+| Variable                    | Description                                                  |
+| --------------------------- | ------------------------------------------------------------ |
+| `JWKS_URI`                  | URI for the JWKS, typically this should be obtained from `https://api.eu.asgardeo.io/t/iati/oauth2/token/.well-known/openid-configuration` or the Asgardeo console. |
+| `ACCESS_CHECK_ENDPOINT`     | `True` enables the `/api/v1/access_check` endpoint to enable applications to check that the API can be called using an access token. |
+| `APP_LOG_LEVEL`             | Log level for the application diagnostic log (`"DEBUG"`, `"INFO"`, `"WARNING"`, `"ERROR"`, or `"CRITICAL"` to match the [standard Python logging levels](https://docs.python.org/3/library/logging.html#levels)). |
+| `APP_LOG_PATH`              | Location for the application diagnostic log.                 |
+| `AUDIT_LOG_PATH`            | Location for the audit log.                                  |
+| `AUDIT_LOG_PUBLIC_KEY_PATH` | Path to the public key for encrypting audit logs.            |
+| `PROMETHEUS_PORT`           | Port to serve Prometheus metrics from.                       |
+| `JWT_AUDIENCE`              | Audience that we expect to find in JWTs from the identity server. |
+
+### Running locally in development mode
+
+To run the API locally in development mode execute the following from the command line.
 
 ```
 fastapi dev src/main.py
 ```
 
-### Environment variables
+This uses the [FastAPI CLI](https://fastapi.tiangolo.com/fastapi-cli/) with a built-in [uvicorn ASGI server](https://fastapi.tiangolo.com/deployment/manually/#use-the-fastapi-run-command).  To run locally in production mode change `dev` to `run`.
 
-Variable | Description
---- | ---
-`JWKS_URI` | URI for the JWKS, typically this should be obtained from `https://api.eu.asgardeo.io/t/iati/oauth2/token/.well-known/openid-configuration` or the Asgardeo console.
-`ACCESS_CHECK_ENDPOINT` | `True` enables the `/api/v1/access_check` endpoint to enable applications to check that the API can be called using an access token.
-`APP_LOG_LEVEL` | Log level for the application
-`APP_LOG_PATH` | Location for the application log
-`AUDIT_LOG_PATH` | Location for the audit log
-`AUDIT_LOG_PUBLIC_KEY_PATH` | Path to the public key for encrypting audit logs
-`PROMETHEUS_PORT` | Port to serve Prometheus metrics at
-`JWT_AUDIENCE` | Audience that we expect to find in JWTs from the identity server
+### Running in production mode from a Docker container
+
+The docker container can be built with:
+
+```
+docker build . --tag rydapi
+```
+
+Running the API in production can be run directly from its Docker container with:
+
+```
+docker run \
+  --mount type=bind,source=.env,target=/api/.env,readonly \
+  --mount type=bind,source=./logs/,target=/api/logs/ \
+  --mount type=bind,source=./keys/,target=/api/keys/,readonly \
+  -p 8000:8000 \
+  -p 9000:9000 \
+  rydapi
+```
+
+This performs the following setup:
+* `--mount type=bind,source=.env,target=/api/.env,readonly`: shares `.env` configuration file on the host with the container.
+* `--mount type=bind,source=./logs/,target=/api/logs/`: allows the container to write logs to the /logs directory on the host.
+* `--mount type=bind,source=./keys/,target=/api/keys/,readonly`: shares the `/keys` directory on the host with the container so public and private keys can be used by the container.
+* `-p 8000:8000`: shares port 8000 for API traffic.
+* `-p 9000:9000`: shares port 9000 for Prometheus metrics (assuming that this is the port as specified by the `.env` file.)
+
+Care should be taken to make sure that the `.env` variables match the log (`APP_LOG_PATH` and `AUDIT_LOG_PATH`) and key directories (`AUDIT_LOG_PUBLIC_KEY_PATH`) and the Prometheus metric port (`PROMETHEUS_PORT`).
 
 ## Development
 
@@ -83,7 +130,7 @@ bandit -c pyproject.toml -r .
 
 ### Versioning
 
-The version is set in `pyproject.toml`.  When making updates, set the version to an appropriate value.
+The version is set in `pyproject.toml`.  When making updates, set the version to an appropriate value.  The version is fixed to 0.1.0 until we have a working API on a dev instance (albeit with mocked data).
 
 
 ## License
