@@ -9,6 +9,7 @@ COPY pyproject.toml .
 COPY licences.json .
 
 RUN pip install -r requirements.txt
+RUN pip install -e .
 
 COPY src/ src
 
