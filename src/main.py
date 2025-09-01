@@ -14,6 +14,7 @@ from fastapi.security import SecurityScopes
 import register_your_data_api.authn as authn
 import register_your_data_api.exceptions
 import register_your_data_api.util as util
+from register_your_data_api.routers import datasets, reporting_orgs, users
 
 
 @contextlib.asynccontextmanager
@@ -34,6 +35,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Register Your Data", lifespan=lifespan)
 register_your_data_api.exceptions.add_exception_handlers(app)
+app.include_router(reporting_orgs.router)
+app.include_router(datasets.router)
+app.include_router(users.router)
 
 
 @app.get("/api/v1/access-check")
@@ -64,4 +68,12 @@ async def access_check(
     return JSONResponse(
         {"status": "success", "data": {"message": "Access token is valid"}, "error": None},
         status_code=fastapi.status.HTTP_200_OK,
+    )
+
+
+@app.get("/licences")
+def get_licences() -> JSONResponse:
+    raise fastapi.HTTPException(
+        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Not yet implemented",
     )
