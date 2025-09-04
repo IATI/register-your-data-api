@@ -3,6 +3,8 @@ import logging
 import time
 
 import jwt
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 import register_your_data_api.util as util
 
@@ -90,12 +92,23 @@ def make_context() -> util.Context:
     """
     context = util.Context(logs_to_stdout=True)
 
+    # Create public key file.
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key = private_key.public_key()
+    public_key_fh = open("test-audit-log-public-key.pem", "wb")
+    public_key_fh.write(
+        public_key.public_bytes(
+            encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+    )
+    public_key_fh.close()
+
     # Set all environment variables.
     context._env = {}  # notype
     for key in context._REQUIRED_ENV_VARS:
         context._env[key] = ""
     context.env["APP_LOG_LEVEL"] = "DEBUG"
-    context.env["AUDIT_LOG_PUBLIC_KEY_PATH"] = "./tests/artefacts/test-audit-log-public-key.pem"
+    context.env["AUDIT_LOG_PUBLIC_KEY_PATH"] = "test-audit-log-public-key.pem"
 
     # Setup log handlers with string buffers we can examine.
     context._setup_loggers()

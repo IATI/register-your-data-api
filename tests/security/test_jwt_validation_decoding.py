@@ -14,7 +14,7 @@ from fastapi import Depends, FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-import register_your_data_api.auth as auth
+import register_your_data_api.authn as authn
 import register_your_data_api.exceptions
 import tests.helpers.logs as logs
 import tests.helpers.mocking as mocking
@@ -54,7 +54,7 @@ register_your_data_api.exceptions.add_exception_handlers(app)
 
 @app.get("/test_validate_and_decode_token")
 def endpoint_test_validate_and_decode_token(
-    request: starlette.requests.Request, token: str = Depends(auth.validate_and_decode_token)
+    request: starlette.requests.Request, token: str = Depends(authn.validate_and_decode_token)
 ) -> JSONResponse:
     return JSONResponse(
         {"status": "success", "data": {"token": token}, "error": None}, status_code=fastapi.status.HTTP_200_OK

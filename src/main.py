@@ -10,7 +10,7 @@ import starlette.requests
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.responses import JSONResponse
 
-import register_your_data_api.auth as auth
+import register_your_data_api.authn as authn
 import register_your_data_api.exceptions
 import register_your_data_api.util as util
 
@@ -44,7 +44,7 @@ register_your_data_api.exceptions.add_exception_handlers(app)
 
 
 async def access_check(
-    request: starlette.requests.Request, token: dict[str, str] = Depends(auth.validate_and_decode_token)
+    request: starlette.requests.Request, token: dict[str, str] = Depends(authn.validate_and_decode_token)
 ) -> JSONResponse:
     """Implements an endpoint for users to check they can access the API
 
