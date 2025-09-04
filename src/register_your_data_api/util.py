@@ -16,7 +16,6 @@ class Context:
     """Holds configuration and setup for API"""
 
     _REQUIRED_ENV_VARS: Final[list[str]] = [
-        "ACCESS_CHECK_ENDPOINT",
         "APP_LOG_LEVEL",
         "APP_LOG_PATH",
         "AUDIT_LOG_PATH",
