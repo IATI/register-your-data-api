@@ -7,6 +7,8 @@ import starlette.requests
 from fastapi import Depends
 from fastapi.security import SecurityScopes
 
+from .util import Context  # noqa: F401
+
 
 async def validate_auth_header(request: starlette.requests.Request) -> str:
     """Validates the authorisation header and returns the bearer token
@@ -27,13 +29,13 @@ async def validate_auth_header(request: starlette.requests.Request) -> str:
         If the request was not authorised.
     """
 
-    context = request.app.state.context
+    context = request.app.state.context  # type: Context
 
     authorisation = request.headers.get("authorization")
     scheme, param = fastapi.security.utils.get_authorization_scheme_param(authorisation)
 
     if not authorisation:
-        context.prom_metrics["requests_auth_failed_http_header_total"].labels(failure_mode="missing_auth").inc()
+        context.prom_counter_metric_inc("requests_auth_failed_http_header_total", "missing_auth")
         context.audit_logger.warning(
             "Received request with missing authorisation HTTP header.  "
             f"METHOD={request.method} URL={request.url} CLIENT={request.client}"
@@ -45,7 +47,7 @@ async def validate_auth_header(request: starlette.requests.Request) -> str:
         )
 
     if scheme.lower() != "bearer":
-        context.prom_metrics["requests_auth_failed_http_header_total"].labels(failure_mode="malformed_auth").inc()
+        context.prom_counter_metric_inc("requests_auth_failed_http_header_total", "malformed_auth")
         context.audit_logger.fatal(
             f"Received request with malformed authorisation HTTP header.  SCHEME={scheme} "
             f"PARAM={param}.  METHOD={request.method} URL={request.url} CLIENT={request.client}"
@@ -83,17 +85,27 @@ async def validate_and_decode_token(  # noqa: C901
         is not complete (401, 403), or we could not reach the key store
         and/or the key was not found (500).
     """
-    context = request.app.state.context
+    context = request.app.state.context  # type: Context
 
-    # Get the key ID used to sign the header and try to get the public key.
-    key_id = context.key_store.get_signing_key_from_jwt(param)
+    key = None
+
     try:
-        key = context.key_store.get_signing_key(key_id)
+        # Get the key ID used to sign the header and try to get the public key.
+        key = context.key_store.get_signing_key_from_jwt(param)
     except jwt.PyJWKClientError as err:
-        context.prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="unknown_signing_key").inc()
+        context.prom_counter_metric_inc("requests_auth_failed_invalid_jwt_total", "unknown_signing_key")
+        jwt_header = jwt.get_unverified_header(param)
+        if "kid" in jwt_header:
+            start_of_error_message = f"Key with key_id={jwt_header['kid']} was not found in JWKS."
+        else:
+            start_of_error_message = "The JWT header contained no 'kid' element."
         context.audit_logger.critical(
-            f"Key with key_id={key_id} was not found in JWKS with error "
-            f"{err}. METHOD={request.method} URL={request.url} CLIENT={request.client}"
+            f"{start_of_error_message} Details: {err}. "
+            f"METHOD={request.method} URL={request.url} CLIENT={request.client}"
+        )
+        print(
+            f"{start_of_error_message} Details: {err}. "
+            f"METHOD={request.method} URL={request.url} CLIENT={request.client}"
         )
         raise fastapi.HTTPException(
             status_code=fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -102,11 +114,9 @@ async def validate_and_decode_token(  # noqa: C901
         )
 
     try:
-        decoded_token: dict[str, Any] = jwt.decode(
-            param, key["key"], audience=context.env["JWT_AUDIENCE"], algorithms=key["alg"]
-        )
+        decoded_token: dict[str, Any] = jwt.decode(param, key, audience=context.env["JWT_AUDIENCE"])
     except jwt.exceptions.InvalidSignatureError as err:
-        context.prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="invalid_signature").inc()
+        context.prom_counter_metric_inc("requests_auth_failed_invalid_jwt_total", "invalid_signature")
         context.audit_logger.critical(
             f"JWT had invalid signature with error {err}.  METHOD={request.method} "
             f"URL={request.url} CLIENT={request.client}"
@@ -117,7 +127,7 @@ async def validate_and_decode_token(  # noqa: C901
             "error to the provider of the tool you are using to access the IATI Registry.",
         )
     except jwt.exceptions.InvalidAudienceError as err:
-        context.prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="invalid_audience").inc()
+        context.prom_counter_metric_inc("requests_auth_failed_invalid_jwt_total", "invalid_audience")
         context.audit_logger.critical(
             f"JWT had invalid audience with error {err}.  METHOD={request.method} "
             f"URL={request.url} CLIENT={request.client}"
@@ -128,7 +138,7 @@ async def validate_and_decode_token(  # noqa: C901
             "error to the provider of the tool you are using to access the IATI Registry.",
         )
     except jwt.exceptions.ExpiredSignatureError as err:
-        context.prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="expired_signature").inc()
+        context.prom_counter_metric_inc("requests_auth_failed_invalid_jwt_total", "expired_signature")
         context.audit_logger.critical(
             f"JWT had expired signature with error {err}.  METHOD={request.method} "
             f"URL={request.url} CLIENT={request.client}"
@@ -142,7 +152,7 @@ async def validate_and_decode_token(  # noqa: C901
 
     REQUIRED_CLAIMS = set(["sub", "roles", "scope", "aud"])
     if len(REQUIRED_CLAIMS.difference(decoded_token)) > 0:
-        context.prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="missing_data").inc()
+        context.prom_counter_metric_inc("requests_auth_failed_invalid_jwt_total", "missing_data")
         context.audit_logger.critical(
             f"JWT is malformed and is missing the {REQUIRED_CLAIMS.difference(decoded_token)} claim(s).  "
             f"METHOD={request.method} CLIENT={request.client}"
@@ -153,7 +163,7 @@ async def validate_and_decode_token(  # noqa: C901
             "error to the provider of the tool you are using to access the IATI Registry.",
         )
 
-    context.prom_metrics["requests_auth_validated_jwt_total"].inc()
+    context.prom_counter_metric_inc("requests_auth_validated_jwt_total")
     context.audit_logger.info(
         f"JWT validated.  SUB={decoded_token["sub"]} AUDIENCE={decoded_token["aud"]} "
         f"ROLES={decoded_token["roles"]} SCOPE={decoded_token["scope"]} "

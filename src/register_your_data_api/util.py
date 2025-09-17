@@ -1,4 +1,5 @@
 import importlib
+import importlib.metadata
 import json
 import logging
 import sys
@@ -96,6 +97,14 @@ class Context:
             self._app_logger.fatal(f"Cannot not load licences ({err})")
             raise err
 
+    def prom_counter_metric_inc(self, metric_name: str, failure_mode_label: str | None = None) -> None:
+        metric = self._prom_metrics[metric_name]
+        if isinstance(metric, Counter):
+            if failure_mode_label is None:
+                metric.inc()
+            else:
+                metric.labels(failure_mode=failure_mode_label).inc()
+
     def __del__(self) -> None:
         try:
             self._app_log_fh.close()
@@ -184,7 +193,7 @@ class Context:
         self._app_log_formatter.default_msec_format = "%s,%03dZ"
         self._app_log_formatter.converter = time.gmtime
         if not self._LOGS_TO_STDOUT:
-            self._app_log_fh = open(self._env["APP_LOG_PATH"], "w")
+            self._app_log_fh = open(self._env["APP_LOG_PATH"], "a")
             self._app_log_file_handler = logging.StreamHandler(self._app_log_fh)
         else:
             self._app_log_file_handler = logging.StreamHandler(sys.stdout)
@@ -201,7 +210,7 @@ class Context:
         self._audit_log_formatter.default_msec_format = "%s,%03dZ"
         self._audit_log_formatter.converter = time.gmtime
         if not self._LOGS_TO_STDOUT:
-            self._audit_log_fh = open(self._env["AUDIT_LOG_PATH"], "w")
+            self._audit_log_fh = open(self._env["AUDIT_LOG_PATH"], "a")
             self._audit_log_file_handler = logging.StreamHandler(self._audit_log_fh)
         else:
             self._audit_log_file_handler = logging.StreamHandler(sys.stdout)

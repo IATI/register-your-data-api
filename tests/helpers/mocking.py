@@ -19,9 +19,9 @@ class MockKeyStore:
     """
 
     def __init__(self) -> None:
-        self._keys = {}  # type: ignore
+        self._keys = {}  # type: dict[str, jwt.PyJWK]
 
-    def add_key(self, kid: str, alg: str, key: bytes) -> None:
+    def add_key(self, kid: str, alg: str, public_key: rsa.RSAPublicKey) -> None:
         """Add a key to the key store.
 
         Parameters
@@ -33,9 +33,14 @@ class MockKeyStore:
         key : bytes
             The key itself.
         """
-        self._keys[kid] = {"key": key, "alg": alg}
+        numbers = public_key.public_numbers()
 
-    def get_signing_key_from_jwt(self, token: str) -> str:
+        n = jwt.utils.base64url_encode(numbers.n.to_bytes((numbers.n.bit_length() + 7) // 8, "big")).decode("utf-8")
+        e = jwt.utils.base64url_encode(numbers.e.to_bytes((numbers.e.bit_length() + 7) // 8, "big")).decode("utf-8")
+
+        self._keys[kid] = jwt.PyJWK.from_dict({"kid": kid, "kty": "RSA", "alg": alg, "use": "sig", "n": n, "e": e})
+
+    def get_signing_key_from_jwt(self, token: str) -> jwt.PyJWK:
         """Get the signing key id from a JWT by examining the unverified header
 
         Parameters
@@ -49,9 +54,11 @@ class MockKeyStore:
             Key id.
         """
         unverified_header = jwt.get_unverified_header(token)
-        return unverified_header.get("kid", None)  # type: ignore
+        if unverified_header.get("kid", None) is None or unverified_header.get("kid") not in self._keys:
+            raise jwt.PyJWKClientError("Key not found")
+        return self._keys[unverified_header.get("kid")]  # type: ignore
 
-    def get_signing_key(self, kid: str) -> dict:  # type: ignore
+    def get_signing_key(self, kid: str) -> jwt.PyJWK:
         """Get the signing key for a given key id.
 
         Parameters
@@ -71,7 +78,7 @@ class MockKeyStore:
         """
         if kid not in self._keys:
             raise jwt.PyJWKClientError("Key not found")
-        return self._keys[kid]  # type: ignore
+        return self._keys[kid]
 
 
 def make_context() -> util.Context:
