@@ -23,6 +23,7 @@ charset-normalizer==3.4.2
     # via requests
 click==8.2.1
     # via
+    #   register-your-data-api (pyproject.toml)
     #   rich-toolkit
     #   typer
     #   uvicorn
