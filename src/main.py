@@ -7,12 +7,14 @@ from typing import AsyncIterator
 import fastapi
 import prometheus_client
 import starlette.requests
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import FastAPI, Security
 from fastapi.responses import JSONResponse
+from fastapi.security import SecurityScopes
 
-import register_your_data_api.auth as auth
+import register_your_data_api.authn as authn
 import register_your_data_api.exceptions
 import register_your_data_api.util as util
+from register_your_data_api.routers import datasets, reporting_orgs, users
 
 
 @contextlib.asynccontextmanager
@@ -28,23 +30,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     app.state.context = context
 
-    # Enable the access check endpoint if required (set in the
-    # ACCESS_CHECK_ENDPOINT environment variable.)
-    if context.env["ACCESS_CHECK_ENDPOINT"].lower() in ("true", "1"):
-        app.state.check_router = APIRouter()
-        context.app_logger.info("Setting up access check endpoint")
-        app.state.check_router.add_api_route("/api/v1/access-check", endpoint=access_check)
-        app.include_router(app.state.check_router)
-
     yield
 
 
 app = FastAPI(title="Register Your Data", lifespan=lifespan)
 register_your_data_api.exceptions.add_exception_handlers(app)
+app.include_router(reporting_orgs.router)
+app.include_router(datasets.router)
+app.include_router(users.router)
 
 
+@app.get("/api/v1/access-check")
 async def access_check(
-    request: starlette.requests.Request, token: dict[str, str] = Depends(auth.validate_and_decode_token)
+    request: starlette.requests.Request,
+    security_scopes: SecurityScopes,
+    user: authn.UserAndCredentials = Security(authn.parse_decoded_token, scopes=["ryd"]),
 ) -> JSONResponse:
     """Implements an endpoint for users to check they can access the API
 
@@ -58,8 +58,8 @@ async def access_check(
     ----------
     request : starlette.requests.Request
         Request object.
-    token : dict, optional
-        Validated and decoded access token.
+    user : authn.UserAndCredentials, optional
+        User model containing user details and credentials.
 
     Returns
     -------
@@ -68,4 +68,12 @@ async def access_check(
     return JSONResponse(
         {"status": "success", "data": {"message": "Access token is valid"}, "error": None},
         status_code=fastapi.status.HTTP_200_OK,
+    )
+
+
+@app.get("/licences")
+def get_licences() -> JSONResponse:
+    raise fastapi.HTTPException(
+        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Not yet implemented",
     )

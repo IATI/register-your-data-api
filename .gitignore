@@ -7,3 +7,6 @@ __pycache__/
 # Python distribution/packaging
 *.egg
 *.egg-info/
+
+.ve
+.venv

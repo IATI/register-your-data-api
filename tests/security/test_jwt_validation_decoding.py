@@ -14,13 +14,13 @@ from fastapi import Depends, FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-import register_your_data_api.auth as auth
+import register_your_data_api.authn as authn
 import register_your_data_api.exceptions
 import tests.helpers.logs as logs
 import tests.helpers.mocking as mocking
 import tests.helpers.prom as prom
 
-JWKS_KEYS: dict[str, dict[str, bytes]] = {}
+JWKS_KEYS: dict[str, dict[str, bytes | rsa.RSAPublicKey]] = {}
 for key in ["key1", "key2"]:
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
     public_key = private_key.public_key()
@@ -33,6 +33,7 @@ for key in ["key1", "key2"]:
         "public_key": public_key.public_bytes(
             encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
         ),
+        "public_key_object": public_key,
     }
 
 
@@ -43,7 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.context.env["JWT_AUDIENCE"] = "some_audience"
 
     for key_id in JWKS_KEYS:
-        app.state.context.key_store.add_key(key_id, "RS256", JWKS_KEYS[key_id]["public_key"])
+        app.state.context.key_store.add_key(key_id, "RS256", JWKS_KEYS[key_id]["public_key_object"])
 
     yield
 
@@ -54,7 +55,7 @@ register_your_data_api.exceptions.add_exception_handlers(app)
 
 @app.get("/test_validate_and_decode_token")
 def endpoint_test_validate_and_decode_token(
-    request: starlette.requests.Request, token: str = Depends(auth.validate_and_decode_token)
+    request: starlette.requests.Request, token: str = Depends(authn.validate_and_decode_token)
 ) -> JSONResponse:
     return JSONResponse(
         {"status": "success", "data": {"token": token}, "error": None}, status_code=fastapi.status.HTTP_200_OK
@@ -68,7 +69,9 @@ def test_okay() -> None:
 
         # Encode the JWT with a matching key.  Should return 200.
         claims = mocking.make_claims()
-        token = jwt.encode(claims, JWKS_KEYS["key1"]["private_key"], algorithm="RS256", headers={"kid": "key1"})
+        token = jwt.encode(
+            claims, JWKS_KEYS["key1"]["private_key"], algorithm="RS256", headers={"kid": "key1"}  # type: ignore
+        )
         response = client.get("/test_validate_and_decode_token", headers={"Authorization": "Bearer " + token})
         response_json = response.json()
 
@@ -104,7 +107,10 @@ def test_mismatching_and_missing_signing_keys() -> None:
 
         # Encode the JWT with an invalid key id.  Should return a 500.
         token = jwt.encode(
-            mocking.make_claims(), JWKS_KEYS["key1"]["private_key"], algorithm="RS256", headers={"kid": "key3"}
+            mocking.make_claims(),
+            JWKS_KEYS["key1"]["private_key"],  # type: ignore
+            algorithm="RS256",
+            headers={"kid": "key3"},
         )
         response = client.get("/test_validate_and_decode_token", headers={"Authorization": "Bearer " + token})
         response_json = response.json()
@@ -126,7 +132,10 @@ def test_mismatching_and_missing_signing_keys() -> None:
 
         # Encode the JWT with the wrong key (using key1 but claim it's key2).  Should return a 401.
         token = jwt.encode(
-            mocking.make_claims(), JWKS_KEYS["key1"]["private_key"], algorithm="RS256", headers={"kid": "key2"}
+            mocking.make_claims(),
+            JWKS_KEYS["key1"]["private_key"],  # type: ignore
+            algorithm="RS256",
+            headers={"kid": "key2"},
         )
         response = client.get("/test_validate_and_decode_token", headers={"Authorization": "Bearer " + token})
         response_json = response.json()
@@ -147,7 +156,10 @@ def test_mismatching_and_missing_signing_keys() -> None:
 
         # Encode the JWT with the wrong key (using key2 but claim it's key1).  Should return a 401.
         token = jwt.encode(
-            mocking.make_claims(), JWKS_KEYS["key2"]["private_key"], algorithm="RS256", headers={"kid": "key1"}
+            mocking.make_claims(),
+            JWKS_KEYS["key2"]["private_key"],  # type: ignore
+            algorithm="RS256",
+            headers={"kid": "key1"},
         )
         response = client.get("/test_validate_and_decode_token", headers={"Authorization": "Bearer " + token})
         response_json = response.json()
@@ -177,7 +189,7 @@ def test_wrong_token_audience() -> None:
 
         token = jwt.encode(
             mocking.make_claims(audience="wrong_audience"),
-            JWKS_KEYS["key1"]["private_key"],
+            JWKS_KEYS["key1"]["private_key"],  # type: ignore
             algorithm="RS256",
             headers={"kid": "key1"},
         )
@@ -209,7 +221,7 @@ def test_expired_token() -> None:
 
         token = jwt.encode(
             mocking.make_claims(expiry_delta=-3600),
-            JWKS_KEYS["key1"]["private_key"],
+            JWKS_KEYS["key1"]["private_key"],  # type: ignore
             algorithm="RS256",
             headers={"kid": "key1"},
         )
@@ -253,7 +265,9 @@ def test_missing_claims() -> None:
             for key in claims_to_remove:
                 claims.pop(key, None)
 
-            token = jwt.encode(claims, JWKS_KEYS["key1"]["private_key"], algorithm="RS256", headers={"kid": "key1"})
+            token = jwt.encode(
+                claims, JWKS_KEYS["key1"]["private_key"], algorithm="RS256", headers={"kid": "key1"}  # type: ignore
+            )
             response = client.get("/test_validate_and_decode_token", headers={"Authorization": "Bearer " + token})
             response_json = response.json()
 
