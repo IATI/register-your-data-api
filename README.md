@@ -133,6 +133,37 @@ bandit -c pyproject.toml -r .
 The version is set in `pyproject.toml`.  When making updates, set the version to an appropriate value.  The version is fixed to 0.1.0 until we have a working API on a dev instance (albeit with mocked data).
 
 
+## Audit Log Viewer
+
+There is a command line application which can be used to decrypt and print the encrypted audit log files. This is primarily useful for use while development. This is the `audit_log_viewer.py` file.
+
+### Configuration
+
+The `audit_log_viewer.py` cli is configured using the following environment variables:
+
+```shell
+AUDIT_LOG_PATH=/path/to/log/file
+AUDIT_LOG_PRIVATE_KEY_PATH=/path_to_private_key
+```
+
+These values will be automatically loaded from a `.env` in the root of the repository.
+
+### Use
+
+To display the audit log file configured by `AUDIT_LOG_PATH` use:
+
+```bash
+python src/audit_log_viewer.py
+```
+
+To decrypt and print log lines from `stdin` use:
+
+```bash
+python src/audit_log_viewer.py --use-stdin
+```
+
+The latter allows you to `tail -f` the encrypted log file and pipe it into the viewer.
+
 ## License
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published by
