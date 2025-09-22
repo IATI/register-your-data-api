@@ -137,7 +137,9 @@ class Context:
         self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="invalid_signature")
         self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="invalid_audience")
         self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="expired_signature")
+        self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="jwt_decode_error")
         self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="missing_data")
+        self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="missing_scope")
 
         self._add_prom_metric(
             "requests_auth_validated_jwt_total", Counter, "Number of requests received that had validated JWT"

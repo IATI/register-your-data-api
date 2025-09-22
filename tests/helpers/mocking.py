@@ -30,7 +30,7 @@ class MockKeyStore:
             Id of the key to add.
         alg : str
             Algorithm that the key uses.
-        key : bytes
+        public_key : rsa.RSAPublicKey
             The key itself.
         """
         numbers = public_key.public_numbers()
@@ -142,7 +142,6 @@ def make_context() -> util.Context:
 def make_claims(
     subject: str = "some_subject",
     audience: str = "some_audience",
-    roles: str = "some_role",
     scopes: str = "some_scope",
     expiry_delta: int = 3600,
 ) -> dict[str, str | int]:
@@ -152,8 +151,6 @@ def make_claims(
     ----------
     audience : str, optional
         Audience for the claim, by default "rydapi"
-    roles : str, optional
-        Roles to add to the claim, by default ""
     scope : str, optional
         Scopes to add to the claim, by default ""
     expiry_delta : int, optional
@@ -166,7 +163,6 @@ def make_claims(
     return {
         "sub": subject,
         "name": "some_user_name",
-        "roles": roles,
         "aud": audience,
         "scope": scopes,
         "exp": int(time.time()) + expiry_delta,
