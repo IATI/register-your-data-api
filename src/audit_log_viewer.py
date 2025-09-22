@@ -53,7 +53,8 @@ def decrypt_audit_log(context: AuditLogViewerContext) -> Generator[str, None, No
         private_key_bytes = private_key_fh.read()
 
     private_key = serialization.load_pem_private_key(private_key_bytes, None)
-    assert isinstance(private_key, rsa.RSAPrivateKey)
+    if not isinstance(private_key, rsa.RSAPrivateKey):
+        raise AssertionError("private_key not of expected type rsa.RSAPrivateKey")
 
     if context.use_stdin:
         fh = sys.stdin
