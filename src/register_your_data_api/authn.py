@@ -92,6 +92,17 @@ async def validate_and_decode_token(  # noqa: C901
     try:
         # Get the key ID used to sign the header and try to get the public key.
         key = context.key_store.get_signing_key_from_jwt(param)
+    except jwt.exceptions.DecodeError as err:
+        context.prom_counter_metric_inc("requests_auth_failed_invalid_jwt_total", "jwt_decode_error")
+        context.audit_logger.critical(
+            f"JWT could not be decoded with error {err}.  METHOD={request.method} "
+            f"URL={request.url} CLIENT={request.client}"
+        )
+        raise fastapi.HTTPException(
+            status_code=fastapi.status.HTTP_401_UNAUTHORIZED,
+            detail="There is a problem with your credentials.  If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry.",
+        )
     except jwt.PyJWKClientError as err:
         context.prom_counter_metric_inc("requests_auth_failed_invalid_jwt_total", "unknown_signing_key")
         jwt_header = jwt.get_unverified_header(param)
@@ -150,7 +161,7 @@ async def validate_and_decode_token(  # noqa: C901
             "provider of the tool you are using to access the IATI Registry.",
         )
 
-    REQUIRED_CLAIMS = set(["sub", "roles", "scope", "aud"])
+    REQUIRED_CLAIMS = set(["sub", "scope", "aud"])
     if len(REQUIRED_CLAIMS.difference(decoded_token)) > 0:
         context.prom_counter_metric_inc("requests_auth_failed_invalid_jwt_total", "missing_data")
         context.audit_logger.critical(
@@ -166,9 +177,13 @@ async def validate_and_decode_token(  # noqa: C901
     context.prom_counter_metric_inc("requests_auth_validated_jwt_total")
     context.audit_logger.info(
         f"JWT validated.  SUB={decoded_token["sub"]} AUDIENCE={decoded_token["aud"]} "
-        f"ROLES={decoded_token["roles"]} SCOPE={decoded_token["scope"]} "
-        f"METHOD={request.method} CLIENT={request.client}"
+        f"SCOPE={decoded_token["scope"]} METHOD={request.method} CLIENT={request.client}"
     )
+
+    # normalise the aud/audience to be a list of strings if there is only one entry
+    if type(decoded_token["aud"]) is str:
+        decoded_token["aud"] = [decoded_token["aud"]]
+
     return decoded_token
 
 
@@ -177,13 +192,14 @@ class UserAndCredentials(pydantic.BaseModel):
 
     sub: str  # User ID in the identity service.
     user_id_crm: str | None  # ID of Person in the CRM.
-    roles: str  # Roles that the user has (from the identity service).
     scopes: str  # Scopes that the access token has (from the identity service).
-    audience: str  # Audience from the access token (from the identity service).
+    audience: list[str]  # Audience from the access token (from the identity service).
 
 
 async def parse_decoded_token(
-    security_scopes: SecurityScopes, token: dict[str, str] = Depends(validate_and_decode_token)
+    request: starlette.requests.Request,
+    security_scopes: SecurityScopes,
+    token: dict[str, Any] = Depends(validate_and_decode_token),
 ) -> UserAndCredentials:
     """Dependency to parse a decoded token, check for scopes, and construct a user object
 
@@ -204,12 +220,18 @@ async def parse_decoded_token(
     fastapi.HTTPException
         If scopes are missing.
     """
+    context = request.app.state.context  # type: Context
 
     # Check the access token has all the required scopes.
+    scopes_in_access_token = token["scope"].split()
+
     for req_scope in security_scopes.scopes:
-        if req_scope not in token["scopes"]:
-            # TODO: Need to add prom metric increment for missing scope.
-            # TODO: Need to add audit log entry for missing scope.
+        if req_scope not in scopes_in_access_token:
+            context.prom_counter_metric_inc("requests_auth_failed_invalid_jwt_total", "missing_scope")
+            context.audit_logger.critical(
+                f"JWT is missing the required scope {req_scope}.  METHOD={request.method} "
+                f"URL={request.url} CLIENT={request.client}"
+            )
             raise fastapi.HTTPException(
                 status_code=fastapi.status.HTTP_403_FORBIDDEN,
                 detail="There is a problem with your credentials.  If this persists please report "
@@ -217,8 +239,6 @@ async def parse_decoded_token(
             )
 
     # Make user object and return.
-    user = UserAndCredentials(
-        sub=token["sub"], scopes=token["scope"], roles=token["roles"], audience=token["aud"], user_id_crm=None
-    )
+    user = UserAndCredentials(sub=token["sub"], scopes=token["scope"], audience=token["aud"], user_id_crm=None)
 
     return user

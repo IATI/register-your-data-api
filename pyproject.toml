@@ -30,8 +30,13 @@ dev = [
     "pytest"
 ]
 
+[tool.bandit]
+exclude_dirs = ['.ve', '.venv', '.mypy_cache', '.pytest_cache']
+fail_on_severity = "LOW"
+fail_on_confidence = "LOW"
+
 [tool.bandit.assert_used]
-skips = ["*/tests/security/test_*.py", "*/tests/unit/test_*.py"]
+skips = ["*/tests/integration/test_*.py", "*/tests/security/test_*.py", "*/tests/unit/test_*.py"]
 
 [tool.mypy]
 strict = true

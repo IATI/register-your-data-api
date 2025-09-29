@@ -3,6 +3,8 @@ import fastapi.responses
 import starlette.exceptions
 import starlette.requests
 
+from .util import Context  # noqa: F401
+
 
 def add_exception_handlers(app: fastapi.FastAPI) -> None:
     """Add custom exception handlers to FastAPI app instance
@@ -33,4 +35,19 @@ def add_exception_handlers(app: fastapi.FastAPI) -> None:
         return fastapi.responses.JSONResponse(
             {"status": "failed", "data": None, "error": {"status_code": exc.status_code, "error_msg": exc.detail}},
             status_code=exc.status_code,
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(
+        request: starlette.requests.Request, exc: Exception
+    ) -> fastapi.responses.JSONResponse:
+        """Catches all unhandled exceptions and returns a generic 500 server error with a simple error message"""
+
+        context = request.app.state.context  # type: Context
+
+        context.app_logger.error(f"An unhandled exception occurred: {exc}", exc_info=True)
+
+        return fastapi.responses.JSONResponse(
+            {"status": "failed", "data": None, "error": {"status_code": 500, "error_msg": "Internal Server Error"}},
+            status_code=500,
         )

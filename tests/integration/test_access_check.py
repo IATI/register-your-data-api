@@ -23,7 +23,6 @@ def test_access_check() -> None:
         claims = make_claims(
             subject="87ee2e6e-a637-483a-beb1-4895a13602d2",
             audience="iati_register_your_data",
-            roles="iati_register_your_data",
             scopes="ryd",
         )
         access_token = jwt.encode(claims, PRIVATE_KEY, algorithm="RS256", headers={"kid": "key1"})
