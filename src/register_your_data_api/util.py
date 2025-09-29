@@ -2,6 +2,7 @@ import importlib
 import importlib.metadata
 import json
 import logging
+import os
 import sys
 import time
 from typing import Any, Final, TextIO, Type
@@ -180,10 +181,7 @@ class Context:
             Stream object to load environment variables from.
         """
         print("Loading environment variables")
-        self._env = dotenv.dotenv_values(stream=file_handle)
-        if len(self._env.keys()) == 0:
-            print("No environment variables found")
-            raise RuntimeError("No environment variables found")
+        self._env = {**dotenv.dotenv_values(stream=file_handle), **os.environ}
 
         for key in self._REQUIRED_ENV_VARS:
             if key not in self._env:
