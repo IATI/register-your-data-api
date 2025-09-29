@@ -19,6 +19,7 @@ import tests.helpers.prom as prom
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    prom.reset_prom_registry()
     app.state.context = mocking.make_context()
 
     yield
