@@ -46,7 +46,9 @@ def test_access_check() -> None:
             audience="iati_register_your_data",
             scopes="ryd",
         )
-        access_token = jwt.encode(claims, JWKS_KEYS["key"]["private_key_object"], algorithm="RS256", headers={"kid": "key"})
+        access_token = jwt.encode(
+            claims, JWKS_KEYS["key"]["private_key_object"], algorithm="RS256", headers={"kid": "key"}
+        )
 
         response = client.get("/api/v1/access-check", headers={"Authorization": "Bearer " + access_token})
         response_json = response.json()

@@ -52,9 +52,7 @@ def test_okay() -> None:
 
         # Encode the JWT with a matching key.  Should return 200.
         claims = mocking.make_claims()
-        token = jwt.encode(
-            claims, JWKS_KEYS["key1"]["private_key"], algorithm="RS256", headers={"kid": "key1"}
-        )
+        token = jwt.encode(claims, JWKS_KEYS["key1"]["private_key"], algorithm="RS256", headers={"kid": "key1"})
         response = client.get("/test_validate_and_decode_token", headers={"Authorization": "Bearer " + token})
         response_json = response.json()
 
@@ -296,9 +294,7 @@ def test_missing_claims() -> None:
             for key in claims_to_remove:
                 claims.pop(key, None)
 
-            token = jwt.encode(
-                claims, JWKS_KEYS["key1"]["private_key"], algorithm="RS256", headers={"kid": "key1"}
-            )
+            token = jwt.encode(claims, JWKS_KEYS["key1"]["private_key"], algorithm="RS256", headers={"kid": "key1"})
             response = client.get("/test_validate_and_decode_token", headers={"Authorization": "Bearer " + token})
             response_json = response.json()
 
