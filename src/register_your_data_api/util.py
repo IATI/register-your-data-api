@@ -2,6 +2,7 @@ import importlib
 import importlib.metadata
 import json
 import logging
+import os
 import sys
 import time
 from typing import Any, Final, TextIO, Type
@@ -139,8 +140,12 @@ class Context:
         self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="expired_signature")
         self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="jwt_decode_error")
         self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="missing_data")
-        self._prom_metrics["requests_auth_failed_invalid_jwt_total"].labels(failure_mode="missing_scope")
 
+        self._add_prom_metric(
+            "requests_access_control_failed_total",
+            Counter,
+            "Number of requests received that had a valid JWT but were missing required scope(s)",
+        )
         self._add_prom_metric(
             "requests_auth_validated_jwt_total", Counter, "Number of requests received that had validated JWT"
         )
@@ -176,10 +181,7 @@ class Context:
             Stream object to load environment variables from.
         """
         print("Loading environment variables")
-        self._env = dotenv.dotenv_values(stream=file_handle)
-        if len(self._env.keys()) == 0:
-            print("No environment variables found")
-            raise RuntimeError("No environment variables found")
+        self._env = {**dotenv.dotenv_values(stream=file_handle), **os.environ}
 
         for key in self._REQUIRED_ENV_VARS:
             if key not in self._env:

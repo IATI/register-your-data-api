@@ -227,7 +227,7 @@ async def parse_decoded_token(
 
     for req_scope in security_scopes.scopes:
         if req_scope not in scopes_in_access_token:
-            context.prom_counter_metric_inc("requests_auth_failed_invalid_jwt_total", "missing_scope")
+            context.prom_counter_metric_inc("requests_access_control_failed_total")
             context.audit_logger.critical(
                 f"JWT is missing the required scope {req_scope}.  METHOD={request.method} "
                 f"URL={request.url} CLIENT={request.client}"

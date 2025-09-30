@@ -6,15 +6,6 @@ import pytest
 import register_your_data_api.util as util
 
 
-def test_empty_env_vars() -> None:
-    """Test that an empty .env file is caught properly"""
-    context = util.Context(logs_to_stdout=True)
-    env_mock = io.StringIO()
-    with pytest.raises(RuntimeError) as exc_info:
-        context._load_and_validate_env(env_mock)
-    assert str(exc_info.value) == "No environment variables found"
-
-
 def test_missing_env_vars() -> None:
     """Test that missing required variable errors in .env are caught and logged properly"""
     REQUIRED_VARS = util.Context._REQUIRED_ENV_VARS
