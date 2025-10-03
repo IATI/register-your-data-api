@@ -9,9 +9,13 @@ from typing import Any, Final, TextIO, Type
 
 import dotenv
 import jwt
+from libsuitecrm import SuiteCRM  # type: ignore
 from prometheus_client import Counter, Gauge, Info, disable_created_metrics
 
 from .audit import EncryptedFormatter
+from .auth.fga.fga_provider import FineGrainedAuthorisationProvider
+from .auth.fga.fga_provider_db import FineGrainedAuthorisationProviderDb
+from .auth.user_crm_uuid_provider import UserCRMUUIDProvider
 
 
 class Context:
@@ -25,6 +29,12 @@ class Context:
         "JWKS_URI",
         "PROMETHEUS_PORT",
         "JWT_AUDIENCE",
+        "FGA_PROVIDER",
+        "FGA_PROVIDER_CONNECTION_STRING",
+        "DATA_REGISTRY_SUITECRM_API_URL",
+        "DATA_REGISTRY_SUITECRM_CLIENT_ID",
+        "DATA_REGISTRY_SUITECRM_CLIENT_SECRET",
+        "USER_CRM_UUID_CONFIG_STRING",
     ]
 
     LOG_LEVELS: Final[dict[str, int]] = {
@@ -49,6 +59,14 @@ class Context:
     _LICENCES: dict[str, str]
 
     _prom_metrics: dict[str, Counter | Info | Gauge]
+
+    _fga_provider: FineGrainedAuthorisationProvider
+
+    _suitecrm_api_url: str
+    _suitecrm_client_id: str
+    _suitecrm_client_secret: str
+
+    _crm_uuid_provider: UserCRMUUIDProvider
 
     def __init__(self, logs_to_stdout: bool = False) -> None:
         self._LOGS_TO_STDOUT: Final = logs_to_stdout
@@ -85,10 +103,30 @@ class Context:
 
         try:
             self._app_logger.info("Setting up JWK store")
-            self._key_store = jwt.jwks_client.PyJWKClient(self._env["JWKS_URI"])
+            self._setup_key_store()
         except Exception as err:
             self._app_logger.fatal(f"Cannot not setup JWK key store ({err})")
             raise err
+
+        try:
+            self._app_logger.info("Setting up Fine Grained Authorisation provider")
+            match self._env["FGA_PROVIDER"]:
+                case "FineGrainedAuthorisationProviderPgDb":
+                    self._fga_provider = FineGrainedAuthorisationProviderDb(
+                        self._env["FGA_PROVIDER_CONNECTION_STRING"]
+                    )
+                    self._fga_provider.setup()
+            if self._fga_provider is None:
+                raise RuntimeError("No FineGrainedAuthorisationProvider has been configured")
+        except Exception as err:
+            self._app_logger.fatal(f"Cannot not setup Fine Grained Authorisation provider ({err})")
+            raise err
+
+        self._suitecrm_api_url = self._env["DATA_REGISTRY_SUITECRM_API_URL"]
+        self._suitecrm_client_id = self._env["DATA_REGISTRY_SUITECRM_CLIENT_ID"]
+        self._suitecrm_client_secret = self._env["DATA_REGISTRY_SUITECRM_CLIENT_SECRET"]
+
+        # self._crm_uuid_provider = UserCRMUUIDProviderAsgardeo(self._env["USER_CRM_UUID_CONFIG_STRING"])
 
         try:
             self._app_logger.info("Loading licences")
@@ -105,6 +143,9 @@ class Context:
                 metric.inc()
             else:
                 metric.labels(failure_mode=failure_mode_label).inc()
+
+    def get_suitecrm_client(self) -> SuiteCRM:
+        return SuiteCRM(self._suitecrm_api_url, self._suitecrm_client_id, self._suitecrm_client_secret)
 
     def __del__(self) -> None:
         try:
@@ -221,6 +262,9 @@ class Context:
         self._audit_log_file_handler.setFormatter(self._audit_log_formatter)
         self._audit_logger.addHandler(self._audit_log_file_handler)
 
+    def _setup_key_store(self) -> None:
+        self._key_store = jwt.jwks_client.PyJWKClient(self._env["JWKS_URI"])
+
     @property
     def app_logger(self) -> logging.Logger:
         """Get method for the app-level logger.
@@ -270,3 +314,19 @@ class Context:
         dict[str, Counter | Info | Gauge]
         """
         return self._prom_metrics
+
+    @property
+    def fine_grained_auth_provider(self) -> FineGrainedAuthorisationProvider:
+        return self._fga_provider
+
+    @property
+    def suitecrm_api_url(self) -> str:
+        return self._suitecrm_api_url
+
+    @property
+    def suitecrm_client_id(self) -> str:
+        return self._suitecrm_client_id
+
+    @property
+    def suitecrm_client_secret(self) -> str:
+        return self._suitecrm_client_secret

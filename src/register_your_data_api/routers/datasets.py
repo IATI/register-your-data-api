@@ -5,7 +5,8 @@ import starlette
 from fastapi import Security
 from fastapi.responses import JSONResponse
 
-import register_your_data_api.authn as authn
+from ..auth.authn import parse_decoded_token
+from ..auth.models import UserAndCredentials
 
 router = fastapi.APIRouter(prefix="/api/v1/datasets")
 
@@ -13,7 +14,7 @@ router = fastapi.APIRouter(prefix="/api/v1/datasets")
 @router.post("/")
 def create_dataset(
     request: starlette.requests.Request,
-    user: authn.UserAndCredentials = Security(authn.parse_decoded_token, scopes=["ryd", "ryd:dataset"]),
+    user: UserAndCredentials = Security(parse_decoded_token, scopes=["ryd", "ryd:dataset"]),
 ) -> JSONResponse:
     raise fastapi.HTTPException(
         status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
@@ -25,7 +26,7 @@ def create_dataset(
 def get_dataset_detail(
     dataset_id: str,
     request: starlette.requests.Request,
-    user: authn.UserAndCredentials = Security(authn.parse_decoded_token, scopes=["ryd", "ryd:dataset"]),
+    user: UserAndCredentials = Security(parse_decoded_token, scopes=["ryd", "ryd:dataset"]),
 ) -> JSONResponse:
     raise fastapi.HTTPException(
         status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
@@ -37,9 +38,7 @@ def get_dataset_detail(
 def update_dataset(
     dataset_id: str,
     request: starlette.requests.Request,
-    user: authn.UserAndCredentials = Security(
-        authn.parse_decoded_token, scopes=["ryd", "ryd:dataset", "ryd:dataset:update"]
-    ),
+    user: UserAndCredentials = Security(parse_decoded_token, scopes=["ryd", "ryd:dataset", "ryd:dataset:update"]),
 ) -> JSONResponse:
     raise fastapi.HTTPException(
         status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
@@ -51,7 +50,7 @@ def update_dataset(
 def delete_dataset(
     dataset_id: str,
     request: starlette.requests.Request,
-    user: authn.UserAndCredentials = Security(authn.parse_decoded_token, scopes=["ryd", "ryd:dataset:delete"]),
+    user: UserAndCredentials = Security(parse_decoded_token, scopes=["ryd", "ryd:dataset:delete"]),
 ) -> JSONResponse:
     raise fastapi.HTTPException(
         status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,

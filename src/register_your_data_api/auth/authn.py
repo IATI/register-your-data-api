@@ -2,12 +2,12 @@ from typing import Any
 
 import fastapi
 import jwt
-import pydantic
 import starlette.requests
 from fastapi import Depends
 from fastapi.security import SecurityScopes
 
-from .util import Context  # noqa: F401
+from ..util import Context  # noqa: F401
+from .models import UserAndCredentials
 
 
 async def validate_auth_header(request: starlette.requests.Request) -> str:
@@ -187,24 +187,18 @@ async def validate_and_decode_token(  # noqa: C901
     return decoded_token
 
 
-class UserAndCredentials(pydantic.BaseModel):
-    """Class to contain user information and credentials obtained from the access token, CRM and identity service"""
-
-    sub: str  # User ID in the identity service.
-    user_id_crm: str | None  # ID of Person in the CRM.
-    scopes: str  # Scopes that the access token has (from the identity service).
-    audience: list[str]  # Audience from the access token (from the identity service).
-
-
 async def parse_decoded_token(
     request: starlette.requests.Request,
     security_scopes: SecurityScopes,
+    raw_token: str = Depends(validate_auth_header),
     token: dict[str, Any] = Depends(validate_and_decode_token),
 ) -> UserAndCredentials:
     """Dependency to parse a decoded token, check for scopes, and construct a user object
 
     Parameters
     ----------
+    request : starlette.requests.Request
+        The FastAPI request object
     security_scopes : SecurityScopes
         Scopes required in this dependency chain.
     token : dict[str, str], optional
@@ -239,6 +233,13 @@ async def parse_decoded_token(
             )
 
     # Make user object and return.
-    user = UserAndCredentials(sub=token["sub"], scopes=token["scope"], audience=token["aud"], user_id_crm=None)
+    user = UserAndCredentials(
+        access_token=raw_token,
+        sub=token["sub"],
+        scopes=token["scope"],
+        audience=token["aud"],
+        user_id_crm=token["externalid"],
+        fga_user_validator=None,
+    )
 
     return user
