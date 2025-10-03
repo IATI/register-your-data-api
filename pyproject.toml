@@ -40,10 +40,11 @@ skips = ["*/tests/integration/test_*.py", "*/tests/security/test_*.py", "*/tests
 
 [tool.mypy]
 strict = true
-mypy_path = ["src"]
+mypy_path = "src"
+files = ["tests"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/unit", "tests/security"]
+testpaths = ["tests/unit", "tests/integration", "tests/security"]
 addopts = [
     "--import-mode=importlib"
 ]
