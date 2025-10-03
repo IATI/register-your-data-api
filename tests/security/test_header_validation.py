@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-import register_your_data_api.authn as authn
+import register_your_data_api.auth.authn as authn
 import register_your_data_api.exceptions
 import tests.helpers.logs as logs
 import tests.helpers.mocking as mocking

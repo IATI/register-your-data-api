@@ -11,12 +11,13 @@ from fastapi import FastAPI, Security
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-import register_your_data_api.authn as authn
+import register_your_data_api.auth.authn as authn
 import register_your_data_api.exceptions
 import tests.helpers.keys as keys
 import tests.helpers.logs as logs
 import tests.helpers.mocking as mocking
 import tests.helpers.prom as prom
+from register_your_data_api.auth import models as auth_models
 
 JWKS_KEYS = keys.generate_keys(["key"])
 
@@ -38,7 +39,7 @@ register_your_data_api.exceptions.add_exception_handlers(app)
 @app.get("/test_require_scopes_1_and_2/")
 def endpoint_test_parsed_token_req_scopes_1_and_2(
     request: starlette.requests.Request,
-    user: authn.UserAndCredentials = Security(authn.parse_decoded_token, scopes=["scope1", "scope2"]),
+    user: auth_models.UserAndCredentials = Security(authn.parse_decoded_token, scopes=["scope1", "scope2"]),
 ) -> JSONResponse:
     return JSONResponse(
         {"status": "success", "data": {"sub": user.sub, "audience": user.audience}, "error": None},
@@ -54,7 +55,9 @@ def test() -> None:
 
         # Encode JWT with all the scopes.  Should return 200 and the user
         # fields should be correct.
-        claims = mocking.make_claims(subject="some-subject", audience="register_your_data", scopes="scope1 scope2")
+        claims = mocking.make_access_token_payload(
+            subject="some-subject", audience="register_your_data", scopes="scope1 scope2"
+        )
         token = jwt.encode(claims, JWKS_KEYS["key"]["private_key"], algorithm="RS256", headers={"kid": "key"})
         response = client.get("/test_require_scopes_1_and_2", headers={"Authorization": "Bearer " + token})
         response_json = response.json()
@@ -70,7 +73,7 @@ def test() -> None:
         assert prom_access_control_failed.change() == pytest.approx(0.0)
 
         # Encode JWT missing scope2.  Should return 403.
-        claims = mocking.make_claims(audience="register_your_data", scopes="scope1")
+        claims = mocking.make_access_token_payload(audience="register_your_data", scopes="scope1")
         token = jwt.encode(claims, JWKS_KEYS["key"]["private_key"], algorithm="RS256", headers={"kid": "key"})
         response = client.get("/test_require_scopes_1_and_2", headers={"Authorization": "Bearer " + token})
         response_json = response.json()
@@ -85,7 +88,7 @@ def test() -> None:
         assert prom_access_control_failed.change() == pytest.approx(1.0)
 
         # Encode JWT missing scope1.  Should return 403.
-        claims = mocking.make_claims(audience="register_your_data", scopes="scope2")
+        claims = mocking.make_access_token_payload(audience="register_your_data", scopes="scope2")
         token = jwt.encode(claims, JWKS_KEYS["key"]["private_key"], algorithm="RS256", headers={"kid": "key"})
         response = client.get("/test_require_scopes_1_and_2", headers={"Authorization": "Bearer " + token})
         response_json = response.json()
@@ -100,7 +103,7 @@ def test() -> None:
         assert prom_access_control_failed.change() == pytest.approx(1.0)
 
         # Encode JWT missing scope1 but with additional scopes.  Should return 403.
-        claims = mocking.make_claims(audience="register_your_data", scopes="scope2 unused:scope")
+        claims = mocking.make_access_token_payload(audience="register_your_data", scopes="scope2 unused:scope")
         token = jwt.encode(claims, JWKS_KEYS["key"]["private_key"], algorithm="RS256", headers={"kid": "key"})
         response = client.get("/test_require_scopes_1_and_2", headers={"Authorization": "Bearer " + token})
         response_json = response.json()
