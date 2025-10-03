@@ -1,13 +1,29 @@
+import contextlib
 import io
 import logging
 import time
+from typing import AsyncIterator
+from uuid import UUID
 
 import jwt
+import sqlmodel
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from fastapi import FastAPI
+from libsuitecrm import SuiteCRM  # type: ignore
 
 import register_your_data_api.util as util
+from main import add_routers_and_general_exception_handling
+from register_your_data_api.auth.fga.fga_provider_db import (
+    FineGrainedAuthorisationDbModel,
+    FineGrainedAuthorisationProviderDb,
+    SuperAdminUserDbModel,
+)
+from register_your_data_api.auth.fga.models import FineGrainedAuthorisationRole
 from tests.helpers.keys import KeyDict
+
+from ..helpers import prom
+from .mocked_objects.mock_suitecrm import MockSuiteCRM
 
 
 class MockKeyStore:
@@ -92,7 +108,119 @@ class MockKeyStore:
         return self._keys[kid]
 
 
-def make_context() -> util.Context:
+class MockedTestContext(util.Context):
+
+    _mocked_suitecrm_client: MockSuiteCRM
+
+    def __init__(self, logs_to_stdout: bool = False) -> None:
+        util.Context.__init__(self, logs_to_stdout=logs_to_stdout)
+        self._env = {}
+        self._mocked_suitecrm_client = MockSuiteCRM()
+
+    def _setup_loggers(self) -> None:
+        self._app_logger = logging.getLogger("ryd-api")
+        self._app_logger.handlers.clear()
+        self._app_log_file_handler = logging.StreamHandler(io.StringIO())
+        self._app_log_formatter = logging.Formatter(fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        self._app_log_file_handler.setFormatter(self._app_log_formatter)
+        self._app_logger.addHandler(self._app_log_file_handler)
+
+        self._audit_logger = logging.getLogger("ryd-api-audit")
+        self._audit_log_file_handler = logging.StreamHandler(io.StringIO())
+        self._audit_log_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")  # type: ignore
+        self._audit_log_file_handler.setFormatter(self._audit_log_formatter)
+        self._audit_logger.addHandler(self._audit_log_file_handler)
+
+    def _setup_key_store(self) -> None:
+        self._key_store = MockKeyStore()  # type: ignore
+
+    def get_suitecrm_client(self) -> SuiteCRM:
+        return self._mocked_suitecrm_client
+
+
+class MockedAppAndContext:
+
+    _JWKS_KEYS: dict[str, tuple[bytes, bytes, rsa.RSAPublicKey]]
+
+    _app: FastAPI
+
+    _app_is_created: bool = False
+
+    _mocked_context: MockedTestContext
+
+    _mocked_user_ids: list[UUID] = []
+
+    _mocked_reporting_org_ids: list[UUID] = []
+
+    def __init__(self) -> None:
+        # Generate two test keys
+        self._JWKS_KEYS: dict[str, tuple[bytes, bytes, rsa.RSAPublicKey]] = {}
+        self._create_test_key("key1")
+        self._create_test_key("key2")
+
+        # Setup lists of test users and reporting orgs
+        self._mocked_user_ids.append(UUID("698e0c1f-4e80-faa9-6533-68de801d1735"))  # Person One
+        self._mocked_user_ids.append(UUID("bea511d3-c7a7-4097-55ed-68de81e94921"))  # Person Two
+        self._mocked_user_ids.append(UUID("a1b191ee-4c12-461c-cbe1-68de8173f628"))  # Person Three
+
+        self._mocked_reporting_org_ids.append(UUID("552376ae-2aa7-98ab-d800-68daa9bfeb4a"))  # aid-agency-01
+        self._mocked_reporting_org_ids.append(UUID("ab851a83-a384-3eb9-caf0-68db8125b067"))  # agency-02
+
+        self._mocked_context = make_test_context(self)  # type: ignore
+
+    def _create_test_key(self, key_name: str) -> None:
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
+        public_key = private_key.public_key()
+        self._JWKS_KEYS[key_name] = (
+            private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            ),
+            public_key.public_bytes(
+                encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ),
+            public_key,
+        )
+
+    def get_test_app(self) -> FastAPI:
+
+        @contextlib.asynccontextmanager
+        async def test_lifespan(app: FastAPI) -> AsyncIterator[None]:
+            prom.reset_prom_registry()
+            app.state.context = self._mocked_context
+
+            for key_id in self._JWKS_KEYS:
+                app.state.context.key_store.add_key(key_id, "RS256", self._JWKS_KEYS[key_id][2])
+
+            yield
+
+        if not self._app_is_created:
+            self._app = FastAPI(title="Register Your Data", lifespan=test_lifespan)
+            add_routers_and_general_exception_handling(self._app)
+            self._app_is_created = True
+
+        return self._app
+
+    def get_valid_authorization_header(self, test_user_num: int) -> dict[str, str]:
+
+        claims = make_access_token_payload(
+            subject=str(self._mocked_user_ids[test_user_num]),
+            audience="iati_register_your_data",
+            scopes="ryd ryd:reporting_org",
+        )
+        token = jwt.encode(claims, self._JWKS_KEYS["key1"][0], algorithm="RS256", headers={"kid": "key1"})
+        return {"Authorization": "Bearer " + token}
+
+    def set_suitecrm_mocked_response_file(self, response_file: str) -> None:
+        self._mocked_context._mocked_suitecrm_client.set_response_file(response_file)
+
+    @property
+    def app(self) -> FastAPI:
+        return self._app
+
+
+def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
     """Makes a mock context object for use in testing
 
     All required environment variables are defined in code but only
@@ -108,6 +236,63 @@ def make_context() -> util.Context:
     -------
     util.Context
     """
+
+    test_context = MockedTestContext(logs_to_stdout=True)
+
+    # TODO: part way through converting util.Context to use methods to set up
+    # each of the components so that they can be overriden in MockedTestContext,
+    # which would allow us just to call .setup() here instead of each of the
+    # components.
+
+    env_fh = open(".env", "r")
+    test_context._load_and_validate_env(env_fh)
+    env_fh.close()
+
+    test_context._setup_prom_metrics()
+
+    test_context._setup_loggers()
+
+    test_context._setup_key_store()
+
+    # Add sqlite FGA provider and populate with test values
+    test_context._fga_provider = FineGrainedAuthorisationProviderDb("sqlite:///test.db")
+    test_context._fga_provider.setup()
+
+    with sqlmodel.Session(test_context._fga_provider._engine) as session:
+        # Add user 1 roles.
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=app_and_context._mocked_user_ids[0],
+                reporting_org=app_and_context._mocked_reporting_org_ids[0],
+                role=FineGrainedAuthorisationRole.EDITOR,
+            )
+        )
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=app_and_context._mocked_user_ids[0],
+                reporting_org=app_and_context._mocked_reporting_org_ids[1],
+                role=FineGrainedAuthorisationRole.ADMIN,
+            )
+        )
+
+        # Person Two - admin to Aid Agency 01
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=app_and_context._mocked_user_ids[1],
+                reporting_org=app_and_context._mocked_reporting_org_ids[0],
+                role=FineGrainedAuthorisationRole.ADMIN,
+            )
+        )
+
+        # Add user 3 roles.
+        session.add(SuperAdminUserDbModel(user=app_and_context._mocked_user_ids[2], is_superadmin=True))
+        session.commit()
+
+    return test_context
+
+
+def make_context() -> util.Context:
+
     context = util.Context(logs_to_stdout=True)
 
     # Create public key file.
@@ -150,20 +335,22 @@ def make_context() -> util.Context:
     return context
 
 
-def make_claims(
+def make_access_token_payload(
     subject: str = "some_subject",
     audience: str = "some_audience",
     scopes: str = "some_scope",
     expiry_delta: int = 3600,
 ) -> dict[str, str | int]:
-    """Make a mock claim to be encoded as an access token
+    """Make a mock access token payload of claims and extra externalid attribute
 
     Parameters
     ----------
+    subject : str, optional
+        Subject for the claim, by default "some_subject"
     audience : str, optional
-        Audience for the claim, by default "rydapi"
+        Audience for the claim, by default "some_audience"
     scope : str, optional
-        Scopes to add to the claim, by default ""
+        Scopes to add to the claim, by default "some_scope"
     expiry_delta : int, optional
         Time offset from the moment of invocation to add to the expiry time, by default +3600 seconds.
 
@@ -173,6 +360,7 @@ def make_claims(
     """
     return {
         "sub": subject,
+        "externalid": subject,  # for the automated tests, set these to the same
         "name": "some_user_name",
         "aud": audience,
         "scope": scopes,
