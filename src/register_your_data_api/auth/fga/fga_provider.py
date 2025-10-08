@@ -19,11 +19,3 @@ class FineGrainedAuthorisationProvider(ABC):
     def is_user_a_superadmin(self, user: UUID) -> bool:
         """Returns True if the user is a superadmin, else False"""
         raise NotImplementedError
-
-    def get_user_fine_grained_permissions_for_reporting_org(
-        self, user: UUID, reporting_org: UUID
-    ) -> list[FineGrainedAuthorisationRoleAssociation]:
-        """Returns a list of all the user's fine grained access roles for the given reporting_org"""
-        fgas = self.get_user_fine_grained_permissions(user)
-
-        return fgas

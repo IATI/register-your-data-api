@@ -3,9 +3,9 @@ from typing import Any
 from ..auth.fga.models import FineGrainedAuthorisationRole
 from .data_schemas import ReportingOrg
 
-RYD_API_TO_SUTIECRM_REPORTING_ORG_FIELDS_LIST = [
-    ["address", "billing_address_street"],
-    ["contact_email", "email_addresses_primary"],
+RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST = [
+    ["address", "jjwg_maps_address_c"],
+    ["contact_email", "email1"],
     ["created_date", "date_entered"],
     ["data_portal_url", "iati_data_portal_url"],
     ["default_licence_id", "iati_default_licence_id"],
@@ -27,13 +27,13 @@ RYD_API_TO_SUTIECRM_REPORTING_ORG_FIELDS_LIST = [
     ["website", "website"],
 ]
 
-RYD_API_REPORTING_ORG_FIELDS = [f[0] for f in RYD_API_TO_SUTIECRM_REPORTING_ORG_FIELDS_LIST]
+RYD_API_REPORTING_ORG_FIELDS = [f[0] for f in RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST]
 
-SUITECRM_REPORTING_ORG_FIELDS = [f[1] for f in RYD_API_TO_SUTIECRM_REPORTING_ORG_FIELDS_LIST]
+SUITECRM_REPORTING_ORG_FIELDS = [f[1] for f in RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST]
 
-RYD_API_TO_SUITECRM_REPORTING_ORG_FIELD_MAP = {f[0]: f[1] for f in RYD_API_TO_SUTIECRM_REPORTING_ORG_FIELDS_LIST}
+RYD_API_TO_SUITECRM_REPORTING_ORG_FIELD_MAP = {f[0]: f[1] for f in RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST}
 
-SUITECRM_TO_RYD_API_REPORTING_ORG_FIELD_MAP = {f[1]: f[0] for f in RYD_API_TO_SUTIECRM_REPORTING_ORG_FIELDS_LIST}
+SUITECRM_TO_RYD_API_REPORTING_ORG_FIELD_MAP = {f[1]: f[0] for f in RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST}
 
 
 def get_dict_with_specified_fields(d: dict[str, Any], fields: list[str]) -> dict[str, Any]:

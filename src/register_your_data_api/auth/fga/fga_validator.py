@@ -33,13 +33,13 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
         ]
         return permissions[user_role]
 
-    def get_user_role_for_reporting_org(self, reporting_org_id: str | UUID) -> FineGrainedAuthorisationRole:
+    def get_user_role_for_reporting_org(self, reporting_org_id: str | UUID) -> FineGrainedAuthorisationRole | None:
         reporting_orgs = []  # type: list[FineGrainedAuthorisationRoleAssociation]
         if self.fine_grained_authorisations is not None:
             id_as_uuid = reporting_org_id if isinstance(reporting_org_id, UUID) else UUID(reporting_org_id)
             reporting_orgs = list(filter(lambda x: x.reporting_org == id_as_uuid, self.fine_grained_authorisations))
         if len(reporting_orgs) == 0:
-            raise ValueError("User has no association with that reporting_org")
+            return None
         return reporting_orgs[0].role
 
     def user_can_read_reporting_org(self, reporting_org_id: UUID) -> bool:

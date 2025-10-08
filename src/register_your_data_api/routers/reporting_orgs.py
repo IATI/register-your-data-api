@@ -67,7 +67,7 @@ def get_reporting_orgs(
             reporting_orgs_list.append(
                 UserReportingOrgRelation(
                     id=reporting_org_from_suitecrm["id"],
-                    user_role=get_fga_role_as_str(role_for_org),
+                    user_role=get_fga_role_as_str(role_for_org),  # type: ignore
                     metadata=reporting_org_obj,
                     reporting_org_actions=[],
                 )
@@ -122,13 +122,13 @@ def get_reporting_org_detail(
         pass
 
     if len(crm_reporting_orgs["data"]) == 0:
-        raise fastapi.HTTPException(status_code=fastapi.status.HTTP_400_BAD_REQUEST, detail="No such reporting org")
+        raise fastapi.HTTPException(status_code=fastapi.status.HTTP_404_NOT_FOUND, detail="No such reporting org")
 
     reporting_org = get_reporting_org_from_suitecrm_response(crm_reporting_orgs["data"][0]["attributes"])
 
     user_reporting_org_relation = UserReportingOrgRelation(
         id=org_id,
-        user_role=get_fga_role_as_str(user.validator.get_user_role_for_reporting_org(org_id)),
+        user_role=get_fga_role_as_str(user.validator.get_user_role_for_reporting_org(org_id)),  # type: ignore
         metadata=reporting_org,
         reporting_org_actions=[],
     )
