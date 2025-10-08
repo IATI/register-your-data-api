@@ -15,6 +15,8 @@ dependencies = [
     "pyjwt>=2.10.0",
     "python-dotenv>=1.1.1",
     "requests==2.32.4",
+    "sqlmodel==0.0.25",
+    "SQLAlchemy==2.0.43",
     "types-requests==2.32.4.20250611"
 ]
 
@@ -40,10 +42,11 @@ skips = ["*/tests/integration/test_*.py", "*/tests/security/test_*.py", "*/tests
 
 [tool.mypy]
 strict = true
-mypy_path = ["src"]
+mypy_path = "src"
+files = ["tests"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/unit", "tests/security"]
+testpaths = ["tests/unit", "tests/integration", "tests/security"]
 addopts = [
     "--import-mode=importlib"
 ]

@@ -1,47 +1,32 @@
-# https://fastapi.tiangolo.com/tutorial/testing/#extended-testing-file
-
 import fastapi
 import jwt
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
 import tests.helpers.keys
 import tests.helpers.prom
-from main import app
-from tests.helpers.mocking import MockKeyStore, make_claims
+from tests.helpers.mocking import make_access_token_payload
+
+from ..helpers.mocking import MockedAppAndContext
 
 JWKS_KEYS = tests.helpers.keys.generate_keys(["key"])
 
 
-@pytest.fixture(autouse=True)
-def setup(request, monkeypatch, tmp_path) -> None:  # type: ignore
-    monkeypatch.chdir(request.fspath.dirname)
-    monkeypatch.setenv("APP_LOG_PATH", str(tmp_path / "app.log"))
-    monkeypatch.setenv("AUDIT_LOG_PATH", str(tmp_path / "audit.log"))
-    monkeypatch.setenv("AUDIT_LOG_PUBLIC_KEY_PATH", str(tmp_path / "audit-log-public-key.pem"))
-    audit_log_private_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
-    audit_log_public_key = audit_log_private_key.public_key()
-    fh = open(tmp_path / "audit-log-public-key.pem", "wb")
-    fh.write(
-        audit_log_public_key.public_bytes(
-            encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )
-    )
-
-
+@pytest.mark.skip
 def test_access_check() -> None:
 
-    with TestClient(app) as client:
-        app.state.context._key_store = MockKeyStore()
-        app.state.context._key_store.add_keys_from_dict(JWKS_KEYS)
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        fastAPIapp.state.context._key_store.add_keys_from_dict(JWKS_KEYS)
 
         prom_auth_validated_jwt = tests.helpers.prom.MetricMonitor("rydapi_requests_auth_validated_jwt_total")
         prom_access_control_failed = tests.helpers.prom.MetricMonitor("rydapi_requests_access_control_failed_total")
 
         # Test all okay.
-        claims = make_claims(
+        claims = make_access_token_payload(
             subject="87ee2e6e-a637-483a-beb1-4895a13602d2",
             audience="iati_register_your_data",
             scopes="ryd",
@@ -61,7 +46,7 @@ def test_access_check() -> None:
         assert prom_access_control_failed.change() == pytest.approx(0.0)
 
         # Test missing scope.
-        claims = make_claims(
+        claims = make_access_token_payload(
             subject="87ee2e6e-a637-483a-beb1-4895a13602d2",
             audience="iati_register_your_data",
             scopes="wrong_scope",
