@@ -1,6 +1,7 @@
 import contextlib
 import io
 import logging
+import os
 import time
 from typing import AsyncIterator
 from uuid import UUID
@@ -165,8 +166,12 @@ class MockedAppAndContext:
 
         self._mocked_reporting_org_ids.append(UUID("552376ae-2aa7-98ab-d800-68daa9bfeb4a"))  # aid-agency-01
         self._mocked_reporting_org_ids.append(UUID("ab851a83-a384-3eb9-caf0-68db8125b067"))  # agency-02
+        self._mocked_reporting_org_ids.append(UUID("da17734d-3926-47ef-8563-8a1b0247ed11"))  # gov agency 03
 
         self._mocked_context = make_test_context(self)  # type: ignore
+
+    def __del__(self) -> None:
+        pass
 
     def _create_test_key(self, key_name: str) -> None:
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
@@ -203,11 +208,23 @@ class MockedAppAndContext:
         return self._app
 
     def get_valid_authorization_header(self, test_user_num: int) -> dict[str, str]:
+        """Generates an authorisation header for the user specified in test_user_num
+
+        Parameters
+        ----------
+        test_user_num : int
+            Index of the mock test user.
+
+        Returns
+        -------
+        dict[str, str]
+            Standard header dictionary with a single entry for 'Authorization'
+        """
 
         claims = make_access_token_payload(
             subject=str(self._mocked_user_ids[test_user_num]),
             audience="iati_register_your_data",
-            scopes="ryd ryd:reporting_org",
+            scopes="ryd ryd:reporting_org ryd:reporting_org:create ryd:reporting_org_update ryd:dataset",
         )
         token = jwt.encode(claims, self._JWKS_KEYS["key1"][0], algorithm="RS256", headers={"kid": "key1"})
         return {"Authorization": "Bearer " + token}
@@ -255,10 +272,21 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
     test_context._setup_key_store()
 
     # Add sqlite FGA provider and populate with test values
+    if os.path.isfile("test.db"):
+        os.unlink("test.db")
     test_context._fga_provider = FineGrainedAuthorisationProviderDb("sqlite:///test.db")
     test_context._fga_provider.setup()
 
     with sqlmodel.Session(test_context._fga_provider._engine) as session:
+
+        # Pesron One / User index 0   = UUID("698e0c1f-4e80-faa9-6533-68de801d1735")
+        # Person Two / User index 1   = UUID("bea511d3-c7a7-4097-55ed-68de81e94921")
+        # Person Three / User index 2 = UUID("a1b191ee-4c12-461c-cbe1-68de8173f628")
+
+        # Aid Agency 01 / index 0 = UUID("552376ae-2aa7-98ab-d800-68daa9bfeb4a")
+        # Agency 02     / index 1 = UUID("ab851a83-a384-3eb9-caf0-68db8125b067")
+        # Gov Agency 03 / index 2 = UUID("da17734d-3926-47ef-8563-8a1b0247ed11")
+
         # Add user 1 roles.
         session.add(
             FineGrainedAuthorisationDbModel(
@@ -280,6 +308,13 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
             FineGrainedAuthorisationDbModel(
                 user=app_and_context._mocked_user_ids[1],
                 reporting_org=app_and_context._mocked_reporting_org_ids[0],
+                role=FineGrainedAuthorisationRole.ADMIN,
+            )
+        )
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=app_and_context._mocked_user_ids[1],
+                reporting_org=app_and_context._mocked_reporting_org_ids[2],
                 role=FineGrainedAuthorisationRole.ADMIN,
             )
         )
@@ -360,7 +395,7 @@ def make_access_token_payload(
     """
     return {
         "sub": subject,
-        "externalid": subject,  # for the automated tests, set these to the same
+        "iatiRegistryId": subject,  # for the automated tests, set these to the same
         "name": "some_user_name",
         "aud": audience,
         "scope": scopes,
