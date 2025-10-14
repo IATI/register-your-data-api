@@ -38,9 +38,17 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
                 select(FineGrainedAuthorisationDbModel).where(FineGrainedAuthorisationDbModel.user == user)
             ).all()
 
-        user_fgas = [FineGrainedAuthorisationRoleAssociation(**db_fga.model_dump()) for db_fga in user_db_fgas]
+        return [FineGrainedAuthorisationRoleAssociation(**db_fga.model_dump()) for db_fga in user_db_fgas]
 
-        return user_fgas
+    def get_user_associations_for_org(self, reporting_org: UUID) -> list[FineGrainedAuthorisationRoleAssociation]:
+        with Session(self._engine) as session:
+            user_db_fgas = session.exec(
+                select(FineGrainedAuthorisationDbModel).where(
+                    FineGrainedAuthorisationDbModel.reporting_org == reporting_org
+                )
+            ).all()
+
+        return [FineGrainedAuthorisationRoleAssociation(**db_fga.model_dump()) for db_fga in user_db_fgas]
 
     def is_user_a_superadmin(self, user: UUID) -> bool:
         with Session(self._engine) as session:
@@ -52,3 +60,11 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
             return True
 
         return False
+
+    def create_user_fine_grained_authorisation(
+        self, user_reporting_org_role: FineGrainedAuthorisationRoleAssociation
+    ) -> None:
+        user_org_role_db = FineGrainedAuthorisationDbModel(**user_reporting_org_role.model_dump())
+        with Session(self._engine) as session:
+            session.add(user_org_role_db)
+            session.commit()

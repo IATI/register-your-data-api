@@ -13,7 +13,7 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
 
     def get_permissions_for_role(self, user_role: FineGrainedAuthorisationRole) -> list[str]:
         permissions = {
-            FineGrainedAuthorisationRole.CONTRIBUTOR: ["read-org", "read-dataset", "update-dataset", "delete-dataset"]
+            FineGrainedAuthorisationRole.CONTRIBUTOR: ["read-org", "read-dataset", "update-dataset"]
         }  # type: dict[FineGrainedAuthorisationRole, list[str]]
         permissions[FineGrainedAuthorisationRole.EDITOR] = [
             *permissions[FineGrainedAuthorisationRole.CONTRIBUTOR],
@@ -38,9 +38,17 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
         if self.fine_grained_authorisations is not None:
             id_as_uuid = reporting_org_id if isinstance(reporting_org_id, UUID) else UUID(reporting_org_id)
             reporting_orgs = list(filter(lambda x: x.reporting_org == id_as_uuid, self.fine_grained_authorisations))
-        if len(reporting_orgs) == 0:
-            return None
-        return reporting_orgs[0].role
+
+        if len(reporting_orgs) == 1:
+            return reporting_orgs[0].role
+
+        if self.is_superadmin:
+            return FineGrainedAuthorisationRole.SUPER_ADMIN
+
+        return None
+
+    def user_can_create_reporting_org(self) -> bool:
+        return True
 
     def user_can_read_reporting_org(self, reporting_org_id: UUID) -> bool:
 
@@ -55,9 +63,46 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
             # accommodate future roles that may give users permission to (say)
             # delete without reading, we pull in permissions and check for
             # read-org
-            permissions_for_org = self.get_permissions_for_role(role_for_org)
+            if "read-org" in self.get_permissions_for_role(role_for_org):
+                return True
 
-            if "read-org" in permissions_for_org:
+        return False
+
+    def user_can_update_reporting_org(self, reporting_org_id: UUID) -> bool:
+
+        if self.is_superadmin:
+            return True
+
+        role_for_org = self.get_user_role_for_reporting_org(reporting_org_id)
+
+        if role_for_org is not None:
+            if "update-org" in self.get_permissions_for_role(role_for_org):
+                return True
+
+        return False
+
+    def user_can_delete_reporting_org(self, reporting_org_id: UUID) -> bool:
+
+        if self.is_superadmin:
+            return True
+
+        role_for_org = self.get_user_role_for_reporting_org(reporting_org_id)
+
+        if role_for_org is not None:
+            if "delete-org" in self.get_permissions_for_role(role_for_org):
+                return True
+
+        return False
+
+    def user_can_read_reporting_org_datasets(self, reporting_org_id: UUID) -> bool:
+
+        if self.is_superadmin:
+            return True
+
+        role_for_org = self.get_user_role_for_reporting_org(reporting_org_id)
+
+        if role_for_org is not None:
+            if "read-dataset" in self.get_permissions_for_role(role_for_org):
                 return True
 
         return False
