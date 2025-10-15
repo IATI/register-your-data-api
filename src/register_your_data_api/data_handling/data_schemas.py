@@ -9,6 +9,7 @@ class CRMUser(pydantic.BaseModel):
 
 
 class DatasetMetadata(pydantic.BaseModel):
+    human_readable_name: str
     short_name: str
     source_type: str
     url: str

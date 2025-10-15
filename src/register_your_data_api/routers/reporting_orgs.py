@@ -375,6 +375,7 @@ def get_reporting_org_datasets(
             id=d["id"],
             owner_organisation_id=d["attributes"]["iati_dataset_owner_org_id"],
             metadata=DatasetMetadata(
+                human_readable_name=d["attributes"]["name"],
                 short_name=d["attributes"]["iati_short_name"],
                 source_type=d["attributes"]["iati_source_type"],
                 url=d["attributes"]["iati_dataset_url"],
