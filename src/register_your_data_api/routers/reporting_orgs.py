@@ -176,7 +176,7 @@ def create_reporting_org(
         # reporting org in SuiteCRM, but only if user is not operating in the
         # capacity as a super_admin
 
-        # 3. Create a fine-grained authorisation for this user to be EDITOR of new reporting_org
+        # 3. Create a fine-grained authorisation for this user to be ADMIN of new reporting_org
         user_reporting_org_role = fga_models.FineGrainedAuthorisationRoleAssociation(
             user=uuid.UUID(user.user_id_crm),
             reporting_org=uuid.UUID(suitecrm_reporting_org["id"]),
@@ -300,14 +300,36 @@ def get_reporting_org_users(
 
     users_for_org_from_suitecrm = crm.get_relationship("Accounts", str(org_id), "Contacts")
 
+    users_for_org_from_fga = context._fga_provider.get_user_associations_for_org(org_id)
+
+    user_ids_from_fga = {str(u.user) for u in users_for_org_from_fga}
+
+    names_emails_from_suitecrm = {
+        u["id"]: (u["attributes"]["last_name"], u["attributes"]["email1"])
+        for u in users_for_org_from_suitecrm["data"]
+        if u["id"] in user_ids_from_fga
+    }
+
+    user_ids_in_fga_not_suitecrm = user_ids_from_fga - {*names_emails_from_suitecrm.keys()}
+
+    if user_ids_in_fga_not_suitecrm:
+        error_message = (
+            f"GET request to reporting-orgs/{org_id}/users by user id: {user.user_id_crm} "
+            f"but the following users associated with reporting org {org_id} in the FGA data "
+            f"store are not associated with that org in SuiteCRM: {user_ids_in_fga_not_suitecrm}"
+        )
+        context.app_logger.error(error_message)
+        context.audit_logger.error(error_message)
+        raise fastapi.HTTPException(500)
+
     users_for_org = [
         CRMUser(
-            id=u["id"],
-            name=u["attributes"]["last_name"],
-            email=u["attributes"]["email1"],
-            role="contributor",  # TODO: fill in when we know correct relationship field name
+            id=str(u.user),
+            name=names_emails_from_suitecrm[str(u.user)][0],
+            email=names_emails_from_suitecrm[str(u.user)][1],
+            role=get_fga_role_as_str(u.role),
         )
-        for u in users_for_org_from_suitecrm["data"]
+        for u in users_for_org_from_fga
     ]
 
     return CRMUserListResponse(data=users_for_org, status="success", error=None)
