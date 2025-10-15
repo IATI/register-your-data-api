@@ -8,7 +8,7 @@ class UserAndCredentials(pydantic.BaseModel):
 
     access_token: str  # Store the raw access token b/c we need to use to make requests to Asgardeo
     sub: str  # User ID in the identity service.
-    user_id_crm: str | None  # ID of Person in the CRM.
+    user_id_crm: str  # ID of Person in the CRM.
     scopes: str  # Scopes that the access token has (from the identity service).
     audience: list[str]  # Audience from the access token (from the identity service).
     fga_user_validator: FineGrainedAuthorisationUserValidator | None

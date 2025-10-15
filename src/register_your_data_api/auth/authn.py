@@ -238,7 +238,7 @@ async def parse_decoded_token(
         sub=token["sub"],
         scopes=token["scope"],
         audience=token["aud"],
-        user_id_crm=token["externalid"],
+        user_id_crm=token["iatiRegistryId"],
         fga_user_validator=None,
     )
 

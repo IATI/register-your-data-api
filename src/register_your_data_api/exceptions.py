@@ -2,6 +2,7 @@ import fastapi
 import fastapi.responses
 import starlette.exceptions
 import starlette.requests
+from fastapi.exceptions import RequestValidationError
 
 from .util import Context  # noqa: F401
 
@@ -35,6 +36,24 @@ def add_exception_handlers(app: fastapi.FastAPI) -> None:
         return fastapi.responses.JSONResponse(
             {"status": "failed", "data": None, "error": {"status_code": exc.status_code, "error_msg": exc.detail}},
             status_code=exc.status_code,
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(
+        request: starlette.requests.Request, exc: RequestValidationError
+    ) -> fastapi.responses.JSONResponse:
+        msg = ""
+        for validation_error in exc._errors:
+            match validation_error["type"]:
+                case "string_too_short":
+                    msg = f"Field {validation_error["loc"][1]} cannot be null or empty."
+                case "missing":
+                    msg = f"There is a missing field. {validation_error["msg"]}: {validation_error["loc"][1]}"
+                case "uuid_parsing":
+                    msg = f"At location: {validation_error["loc"]} validation failed: {validation_error["msg"]}"
+        return fastapi.responses.JSONResponse(
+            {"status": "failed", "data": None, "error": {"status_code": 400, "error_msg": msg}},
+            status_code=400,
         )
 
     @app.exception_handler(Exception)

@@ -1,7 +1,7 @@
 from typing import Any
 
 from ..auth.fga.models import FineGrainedAuthorisationRole
-from .data_schemas import ReportingOrg
+from .data_schemas import ReportingOrgCreateModel, ReportingOrgMetadata, ReportingOrgUpdateModel
 
 RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST = [
     ["address", "jjwg_maps_address_c"],
@@ -37,15 +37,29 @@ SUITECRM_TO_RYD_API_REPORTING_ORG_FIELD_MAP = {f[1]: f[0] for f in RYD_API_TO_SU
 
 
 def get_dict_with_specified_fields(d: dict[str, Any], fields: list[str]) -> dict[str, Any]:
+    """Returns a new dictionary with the key:value pairs from d if key is in fields"""
+
     return {k: v for k, v in d.items() if k in fields}
 
 
-def get_reporting_org_from_suitecrm_response(suitecrm_response: dict[str, Any]) -> ReportingOrg:
+def get_reporting_org_from_suitecrm_response(suitecrm_response: dict[str, Any]) -> ReportingOrgMetadata:
+    """Gets a native ReportingOrgMetadata object from a SuiteCRM response"""
+
     cleaned_response = get_dict_with_specified_fields(suitecrm_response, SUITECRM_REPORTING_ORG_FIELDS)
     dict_with_ryd_api_field_names = {
         SUITECRM_TO_RYD_API_REPORTING_ORG_FIELD_MAP[k]: v for k, v in cleaned_response.items()
     }
-    return ReportingOrg(**dict_with_ryd_api_field_names)
+    # Now fix the fields that are typed differently
+    if "registry_approved" in dict_with_ryd_api_field_names:
+        dict_with_ryd_api_field_names["registry_approved"] = dict_with_ryd_api_field_names["registry_approved"] == "1"
+    return ReportingOrgMetadata(**dict_with_ryd_api_field_names)
+
+
+def get_suitecrm_dict_from_reporting_org(
+    reporting_org: ReportingOrgMetadata | ReportingOrgCreateModel | ReportingOrgUpdateModel,
+) -> dict[str, Any]:
+    suitecrm_dict = {RYD_API_TO_SUITECRM_REPORTING_ORG_FIELD_MAP[k]: v for k, v in reporting_org}
+    return suitecrm_dict
 
 
 def get_fga_role_as_str(role: FineGrainedAuthorisationRole) -> str:
@@ -58,3 +72,5 @@ def get_fga_role_as_str(role: FineGrainedAuthorisationRole) -> str:
             return "provider_admin"
         case FineGrainedAuthorisationRole.ADMIN:
             return "admin"
+        case FineGrainedAuthorisationRole.SUPER_ADMIN:
+            return "super_admin"

@@ -1,0 +1,46 @@
+{
+    "meta": {
+        "total-records": 1,
+        "total-pages": 1,
+        "records-on-this-page": 1
+    },
+    "data": [
+        {
+            "type": "IATI_Dataset",
+            "id": "52ac525f-6375-079b-977d-68ecf3be2868",
+            "attributes": {
+                "name": "Aid Agency - Dataset 01",
+                "date_entered": "2025-10-13T12:43:00+00:00",
+                "date_modified": "2025-10-13T13:34:00+00:00",
+                "modified_user_id": "1",
+                "modified_by_name": "Administrator",
+                "created_by": "1",
+                "created_by_name": "Administrator",
+                "description": "",
+                "deleted": "0",
+                "created_by_link": "",
+                "modified_user_link": "",
+                "assigned_user_id": "1",
+                "assigned_user_name": "Administrator",
+                "assigned_user_link": "",
+                "SecurityGroups": "",
+                "iati_licence_id": "cc-zero",
+                "iati_url_update_date": "",
+                "iati_metadata_update_date": "",
+                "iati_short_name": "aidagy-data-01",
+                "iati_source_type": "primary_source",
+                "iati_dataset_url": "http://aidagency.com/dataset-01.xml",
+                "iati_visibility": "public",
+                "iati_dataset_owner_org_link": "",
+                "iati_dataset_owner_org_id": "552376ae-2aa7-98ab-d800-68daa9bfeb4a",
+                "iati_dataset_owner_org_name": "Aid Agency 01",
+                "iati_dataset_creator_person_link": {},
+                "iati_dataset_creator_person_id": "",
+                "iati_dataset_creator_person_name": ""
+            },
+            "links": {
+                "self": "V8/module/IATI_Dataset/52ac525f-6375-079b-977d-68ecf3be2868"
+            }
+        }
+    ]
+}

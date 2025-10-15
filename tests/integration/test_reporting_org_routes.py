@@ -1,66 +1,429 @@
 import json
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 from ..helpers.mocking import MockedAppAndContext
+from ..helpers.utilities import is_valid_uuid
 
 
 @pytest.mark.parametrize(
-    "user,response_file,reporting_org_id,reporting_org_short_name,has_meta",
+    "user,reporting_org_details,include_meta",
     [
         (
-            1,
-            "get_records_reporting_orgs_01_org_1_no_meta.json",
-            "552376ae-2aa7-98ab-d800-68daa9bfeb4a",
-            "aid-agency-01",
+            0,
+            [
+                ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01"),
+                ("ab851a83-a384-3eb9-caf0-68db8125b067", "agency-02"),
+            ],
             False,
         ),
         (
             1,
-            "get_records_reporting_orgs_02_org_1_with_meta.json",
-            "552376ae-2aa7-98ab-d800-68daa9bfeb4a",
-            "aid-agency-01",
+            [
+                ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01"),
+                ("da17734d-3926-47ef-8563-8a1b0247ed11", "gov-agency-03"),
+            ],
+            False,
+        ),
+        (
+            1,
+            [
+                ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01"),
+                ("da17734d-3926-47ef-8563-8a1b0247ed11", "gov-agency-03"),
+            ],
+            True,
+        ),
+        (
+            2,
+            [],
             True,
         ),
     ],
 )
-def test_reporting_orgs_lists_correct_user_to_org_associations(
-    user: int, response_file: str, reporting_org_id: str, reporting_org_short_name: str, has_meta: bool
+def test_reporting_orgs_fetch_user_to_org_associations(
+    user: int, reporting_org_details: list[tuple[str, str]], include_meta: bool
 ) -> None:
-
-    # TODO: add test case cover Person One (user index 0) who is associated with two reporting orgs
-    # Not currently added as parameter set because this fails on SuiteCRM and so I haven't pulled
-    # correct response format.
-
-    # TODO: consume 'has_meta' flag to check additional fields are set when that is True
 
     appAndContext = MockedAppAndContext()
 
     fastAPIapp = appAndContext.get_test_app()
 
-    appAndContext.set_suitecrm_mocked_response_file(response_file)
-
     with TestClient(fastAPIapp) as client:
-        response = client.get("/api/v1/reporting-orgs", headers=appAndContext.get_valid_authorization_header(user))
+        response = client.get(
+            "/api/v1/reporting-orgs",
+            headers=appAndContext.get_valid_authorization_header(user),
+            params={"include_meta": "yes" if include_meta else "no"},
+        )
 
         assert response.status_code == 200
+
         resp_as_object = json.loads(response.content)
 
-        assert resp_as_object["data"][0]["id"] == reporting_org_id
-        assert resp_as_object["data"][0]["metadata"]["short_name"] == reporting_org_short_name
+        assert len(resp_as_object["data"]) == len(reporting_org_details)
+
+        for reporting_org in reporting_org_details:
+            reporting_org_response_object = find_reporting_org_in_response(resp_as_object, reporting_org[0])
+
+            assert reporting_org_response_object is not None
+            assert reporting_org_response_object["metadata"]["short_name"] == reporting_org[1]
+
+            if include_meta:
+                assert reporting_org_response_object["metadata"]["data_portal_url"] is not None
+                assert reporting_org_response_object["metadata"]["default_licence_id"] is not None
+                assert reporting_org_response_object["metadata"]["description"] is not None
+                assert reporting_org_response_object["metadata"]["exclusions_policy_url"] is not None
+                assert reporting_org_response_object["metadata"]["hq_country"] is not None
+                assert reporting_org_response_object["metadata"]["organisation_type"] is not None
+                assert reporting_org_response_object["metadata"]["region"] is not None
+                assert reporting_org_response_object["metadata"]["website"] is not None
 
 
-@pytest.mark.skip
-def test_reporting_org_detail_user_has_access() -> None:
-    pass
+def find_reporting_org_in_response(resp_as_object: dict[str, Any], reporting_org_id: str) -> dict[str, Any] | None:
+    for reporting_org in resp_as_object["data"]:
+        if reporting_org["id"] == reporting_org_id:
+            return reporting_org  # type: ignore
+    return None
 
 
-@pytest.mark.skip
-def test_reporting_org_detail_user_not_allowed() -> None:
-    pass
+def test_reporting_org_detail_handles_non_uuid() -> None:
+    """Tests that /reporting_orgs/{oid} returns 400 when {oid} is not a UUID"""
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        response = client.get(
+            "/api/v1/reporting-orgs/INVALID", headers=appAndContext.get_valid_authorization_header(2)
+        )
+
+        assert response.status_code == 400
+
+        resp_as_object = json.loads(response.content)
+
+        assert resp_as_object["error"]["error_msg"].find("validation failed") > 0
 
 
-@pytest.mark.skip
-def test_reporting_org_detail_no_reporting_org() -> None:
-    pass
+@pytest.mark.parametrize(
+    "user,reporting_org_id,status_code",
+    [
+        (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200),
+        (0, "ab851a83-a384-3eb9-caf0-68db8125b067", 200),
+        (0, "01234567-0000-1111-2222-0123456789ab", 403),
+        (1, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200),
+        (1, "ab851a83-a384-3eb9-caf0-68db8125b067", 403),
+        (1, "01234567-0000-1111-2222-0123456789ab", 403),
+        (2, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200),
+        (2, "ab851a83-a384-3eb9-caf0-68db8125b067", 200),
+        (2, "01234567-0000-1111-2222-0123456789ab", 404),
+    ],
+)
+def test_reporting_org_detail_check_user_access(user: int, reporting_org_id: str, status_code: int) -> None:
+    """Tests the user's access to /reporting_orgs/{oid}"""
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        response = client.get(
+            f"/api/v1/reporting-orgs/{reporting_org_id}", headers=appAndContext.get_valid_authorization_header(user)
+        )
+
+        assert response.status_code == status_code
+
+
+@pytest.mark.parametrize(
+    "users,reporting_org_id,reporting_org_details,include_meta",
+    [
+        (
+            [0, 1, 2],
+            "552376ae-2aa7-98ab-d800-68daa9bfeb4a",
+            {
+                "data_portal_url": "http://data-portal.com",
+                "default_licence_id": "cc-zero",
+                "description": "Test agency 01",
+                "exclusions_policy_url": "http://exclusions-policy.com",
+                "hq_country": "GB",
+                "human_readable_name": "Aid Agency 01",
+                "organisation_identifier": "GB-TEST-AGENCY-01",
+                "organisation_type": "21",
+                "region": "89",
+                "short_name": "aid-agency-01",
+                "website": "http://aid-agency.org",
+            },
+            False,
+        ),
+        (
+            [0, 2],
+            "ab851a83-a384-3eb9-caf0-68db8125b067",
+            {
+                "data_portal_url": "",
+                "default_licence_id": "cc-by-sa",
+                "description": "",
+                "exclusions_policy_url": "",
+                "hq_country": "LV",
+                "human_readable_name": "Agency 02",
+                "organisation_identifier": "XI-012345-6789",
+                "organisation_type": "",
+                "region": "89",
+                "short_name": "agency-02",
+                "website": "http://",
+            },
+            False,
+        ),
+    ],
+)
+def test_reporting_org_detail_check_values(
+    users: list[int], reporting_org_id: str, reporting_org_details: dict[str, str], include_meta: bool
+) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    for user in users:
+        with TestClient(fastAPIapp) as client:
+            response = client.get(
+                f"/api/v1/reporting-orgs/{reporting_org_id}",
+                headers=appAndContext.get_valid_authorization_header(user),
+                params={"include_meta": "yes" if include_meta else "no"},
+            )
+
+            assert response.status_code == 200
+
+            resp_as_object = json.loads(response.content)
+
+            reporting_org_response_object = resp_as_object["data"]
+
+            assert reporting_org_response_object is not None
+            assert (
+                reporting_org_response_object["metadata"]["human_readable_name"]
+                == reporting_org_details["human_readable_name"]
+            )
+            assert (
+                reporting_org_response_object["metadata"]["organisation_identifier"]
+                == reporting_org_details["organisation_identifier"]
+            )
+            assert reporting_org_response_object["metadata"]["short_name"] == reporting_org_details["short_name"]
+
+            if include_meta:
+                assert reporting_org_response_object["metadata"]["data_portal_url"] is not None
+                assert reporting_org_response_object["metadata"]["default_licence_id"] is not None
+                assert reporting_org_response_object["metadata"]["description"] is not None
+                assert reporting_org_response_object["metadata"]["exclusions_policy_url"] is not None
+                assert reporting_org_response_object["metadata"]["hq_country"] is not None
+                assert reporting_org_response_object["metadata"]["organisation_type"] is not None
+                assert reporting_org_response_object["metadata"]["region"] is not None
+                assert reporting_org_response_object["metadata"]["website"] is not None
+
+
+@pytest.mark.parametrize("user", [0, 1, 2])
+def test_reporting_org_create(user: int) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    new_reporting_org = {
+        "address": "Fake Address",
+        "contact_email": "org.admin@example.org",
+        "data_portal_url": "https://www.example.org/data-portal",
+        "default_licence_id": "gpl-3.0",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+        "exclusions_policy_url": "https://www.example.org/exclusions-policy",
+        "fax": "456-7890-1234",
+        "hq_country": "CO",
+        "human_readable_name": "Aid Agency",
+        "organisation_identifier": "CO-ABC-123456",
+        "organisation_type": "Regional NGO",
+        "phone": "123-4567-8901",
+        "region": "489",
+        "reporting_source_type": "primary_source",
+        "short_name": "aidagy",
+        "website": "https://www.example.org/",
+    }
+
+    with TestClient(fastAPIapp) as client:
+        response = client.post(
+            "/api/v1/reporting-orgs/",
+            headers=appAndContext.get_valid_authorization_header(user),
+            content=json.dumps(new_reporting_org),
+        )
+
+        assert response.status_code == 201
+
+        response_obj = json.loads(response.content)
+
+        assert response_obj["status"] == "success"
+
+        assert is_valid_uuid(response_obj["data"]["id"])
+        assert response_obj["data"]["user_role"] == "admin"
+
+        for field in new_reporting_org.keys():
+            assert response_obj["data"]["metadata"][field] == new_reporting_org[field]
+
+        # TODO: add in "number_of_published_datasets" when it's back in SuiteCRM and rest of RYD API
+        for derived_field in ["created_date", "first_publication_date", "registry_approved"]:
+            assert derived_field in response_obj["data"]["metadata"].keys()
+
+        assert isinstance(response_obj["data"]["metadata"]["registry_approved"], bool)
+
+
+@pytest.mark.parametrize("user", [0, 1, 2])
+def test_reporting_org_create_with_missing_fields(user: int) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    reporting_org = {
+        "address": "Fake Address",
+        "contact_email": "org.admin@example.org",
+        "data_portal_url": "https://www.example.org/data-portal",
+        "default_licence_id": "gpl-3.0",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+        "exclusions_policy_url": "https://www.example.org/exclusions-policy",
+        "fax": "456-7890-1234",
+        "hq_country": "CO",
+        "human_readable_name": "Aid Agency",
+        "organisation_identifier": "CO-ABC-123456",
+        "organisation_type": "Regional NGO",
+        "phone": "123-4567-8901",
+        "region": "489",
+        "reporting_source_type": "primary_source",
+        "short_name": "aidagy",
+        "website": "https://www.example.org/",
+    }
+
+    with TestClient(fastAPIapp) as client:
+
+        for reporting_org_with_a_missing_field in map(
+            lambda x: {k: v for k, v in reporting_org.items() if k != x}, list(reporting_org.keys())
+        ):
+
+            response = client.post(
+                "/api/v1/reporting-orgs/",
+                headers=appAndContext.get_valid_authorization_header(user),
+                content=json.dumps(reporting_org_with_a_missing_field),
+            )
+
+            assert response.status_code == 400
+
+            response_obj = json.loads(response.content)
+
+            assert response_obj["status"] == "failed"
+
+
+@pytest.mark.parametrize(
+    "user,reporting_org_id,status,status_s,num_datasets",
+    [
+        (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200, "success", 1),
+        (0, "ab851a83-a384-3eb9-caf0-68db8125b067", 200, "success", 2),
+        (0, "da17734d-3926-47ef-8563-8a1b0247ed11", 403, "failed", -1),
+        (0, "92f398c1-6163-f097-3ded-68e9138bb9c8", 403, "failed", -1),
+        (1, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200, "success", 1),
+        (1, "ab851a83-a384-3eb9-caf0-68db8125b067", 403, "failed", -1),
+        (1, "da17734d-3926-47ef-8563-8a1b0247ed11", 200, "success", 0),
+        (2, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200, "success", 1),
+        (2, "ab851a83-a384-3eb9-caf0-68db8125b067", 200, "success", 2),
+        (2, "92f398c1-6163-f097-3ded-68e9138bb9c8", 404, "failed", -1),
+        (2, "da17734d-3926-47ef-8563-8a1b0247ed11", 200, "success", 0),
+    ],
+)
+def test_reporting_org_list_datasets(
+    user: int, reporting_org_id: str, status: int, status_s: str, num_datasets: int
+) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+
+        response = client.get(
+            f"/api/v1/reporting-orgs/{reporting_org_id}/datasets",
+            headers=appAndContext.get_valid_authorization_header(user),
+        )
+
+        assert response.status_code == status
+
+        resp_json = response.json()
+
+        assert resp_json["status"] == status_s
+
+        if status == 200:
+            assert len(resp_json["data"]) == num_datasets
+
+
+@pytest.mark.parametrize(
+    (
+        "user,reporting_org_id,dataset_idx,dataset_id,human_readable_name,"
+        "licence_id,short_name,source_type,url,visibility"
+    ),
+    [
+        (
+            0,
+            "552376ae-2aa7-98ab-d800-68daa9bfeb4a",
+            0,
+            "52ac525f-6375-079b-977d-68ecf3be2868",
+            "Aid Agency - Dataset 01",
+            "cc-zero",
+            "aidagy-data-01",
+            "primary_source",
+            "http://aidagency.com/dataset-01.xml",
+            "public",
+        ),
+        (
+            0,
+            "ab851a83-a384-3eb9-caf0-68db8125b067",
+            1,
+            "6f0616d2-1a3a-0545-a495-68ecf41bb123",
+            "Aid Agency 2 - South Dataset",
+            "odc-odbl",
+            "aid-agency-02-south",
+            "primary_source",
+            "http://aidagency.com/south-dataset.xml",
+            "public",
+        ),
+    ],
+)
+def test_reporting_org_list_datasets_detail(
+    user: int,
+    reporting_org_id: str,
+    dataset_idx: int,
+    dataset_id: str,
+    human_readable_name: str,
+    licence_id: str,
+    short_name: str,
+    source_type: str,
+    url: str,
+    visibility: str,
+) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+
+        response = client.get(
+            f"/api/v1/reporting-orgs/{reporting_org_id}/datasets",
+            headers=appAndContext.get_valid_authorization_header(user),
+        )
+
+        assert response.status_code == 200
+
+        resp_as_obj = response.json()
+
+        dataset = resp_as_obj["data"][dataset_idx]
+
+        assert dataset["id"] == dataset_id
+        assert dataset["owner_organisation_id"] == reporting_org_id
+        assert dataset["metadata"]["licence_id"] == licence_id
+        assert dataset["metadata"]["short_name"] == short_name
+        assert dataset["metadata"]["source_type"] == source_type
+        assert dataset["metadata"]["url"] == url
+        assert dataset["metadata"]["visibility"] == visibility
