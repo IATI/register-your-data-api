@@ -224,7 +224,7 @@ class MockedAppAndContext:
         claims = make_access_token_payload(
             subject=str(self._mocked_user_ids[test_user_num]),
             audience="iati_register_your_data",
-            scopes="ryd ryd:reporting_org ryd:reporting_org:create ryd:reporting_org_update ryd:dataset",
+            scopes="ryd ryd:reporting_org ryd:reporting_org:create ryd:reporting_org:update ryd:dataset",
         )
         token = jwt.encode(claims, self._JWKS_KEYS["key1"][0], algorithm="RS256", headers={"kid": "key1"})
         return {"Authorization": "Bearer " + token}
