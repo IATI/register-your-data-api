@@ -356,3 +356,74 @@ def test_reporting_org_list_datasets(
 
         if status == 200:
             assert len(resp_json["data"]) == num_datasets
+
+
+@pytest.mark.parametrize(
+    (
+        "user,reporting_org_id,dataset_idx,dataset_id,human_readable_name,"
+        "licence_id,short_name,source_type,url,visibility"
+    ),
+    [
+        (
+            0,
+            "552376ae-2aa7-98ab-d800-68daa9bfeb4a",
+            0,
+            "52ac525f-6375-079b-977d-68ecf3be2868",
+            "Aid Agency - Dataset 01",
+            "cc-zero",
+            "aidagy-data-01",
+            "primary_source",
+            "http://aidagency.com/dataset-01.xml",
+            "public",
+        ),
+        (
+            0,
+            "ab851a83-a384-3eb9-caf0-68db8125b067",
+            1,
+            "6f0616d2-1a3a-0545-a495-68ecf41bb123",
+            "Aid Agency 2 - South Dataset",
+            "odc-odbl",
+            "aid-agency-02-south",
+            "primary_source",
+            "http://aidagency.com/south-dataset.xml",
+            "public",
+        ),
+    ],
+)
+def test_reporting_org_list_datasets_detail(
+    user: int,
+    reporting_org_id: str,
+    dataset_idx: int,
+    dataset_id: str,
+    human_readable_name: str,
+    licence_id: str,
+    short_name: str,
+    source_type: str,
+    url: str,
+    visibility: str,
+) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+
+        response = client.get(
+            f"/api/v1/reporting-orgs/{reporting_org_id}/datasets",
+            headers=appAndContext.get_valid_authorization_header(user),
+        )
+
+        assert response.status_code == 200
+
+        resp_as_obj = response.json()
+
+        dataset = resp_as_obj["data"][dataset_idx]
+
+        assert dataset["id"] == dataset_id
+        assert dataset["owner_organisation_id"] == reporting_org_id
+        assert dataset["metadata"]["licence_id"] == licence_id
+        assert dataset["metadata"]["short_name"] == short_name
+        assert dataset["metadata"]["source_type"] == source_type
+        assert dataset["metadata"]["url"] == url
+        assert dataset["metadata"]["visibility"] == visibility
