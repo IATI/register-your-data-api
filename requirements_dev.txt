@@ -85,6 +85,8 @@ isort==6.0.1
     # via register-your-data-api (pyproject.toml)
 jinja2==3.1.6
     # via fastapi
+libsuitecrm @ git+https://github.com/iati/iati-registry-libsuitecrm
+    # via register-your-data-api (pyproject.toml)
 markdown-it-py==3.0.0
     # via rich
 markupsafe==3.0.2
@@ -99,6 +101,10 @@ mypy-extensions==1.1.0
     # via
     #   black
     #   mypy
+oauthlib==3.3.1
+    # via
+    #   libsuitecrm
+    #   requests-oauthlib
 packaging==25.0
     # via
     #   black
@@ -118,6 +124,10 @@ pluggy==1.6.0
     # via pytest
 prometheus-client==0.22.1
     # via register-your-data-api (pyproject.toml)
+psycopg==3.2.10
+    # via register-your-data-api (pyproject.toml)
+psycopg-binary==3.2.10
+    # via psycopg
 pycodestyle==2.14.0
     # via flake8
 pycparser==2.22
@@ -154,7 +164,12 @@ pyyaml==6.0.2
     #   bandit
     #   uvicorn
 requests==2.32.4
-    # via register-your-data-api (pyproject.toml)
+    # via
+    #   libsuitecrm
+    #   register-your-data-api (pyproject.toml)
+    #   requests-oauthlib
+requests-oauthlib==2.0.0
+    # via libsuitecrm
 rich==14.0.0
     # via
     #   bandit
@@ -195,6 +210,7 @@ typing-extensions==4.14.1
     #   anyio
     #   fastapi
     #   mypy
+    #   psycopg
     #   pydantic
     #   pydantic-core
     #   rich-toolkit
