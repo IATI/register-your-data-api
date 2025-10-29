@@ -13,7 +13,7 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
 
     def get_permissions_for_role(self, user_role: FineGrainedAuthorisationRole) -> list[str]:
         permissions = {
-            FineGrainedAuthorisationRole.CONTRIBUTOR: ["read-org", "read-dataset", "update-dataset"]
+            FineGrainedAuthorisationRole.CONTRIBUTOR: ["read-org", "create-dataset", "read-dataset", "update-dataset"]
         }  # type: dict[FineGrainedAuthorisationRole, list[str]]
         permissions[FineGrainedAuthorisationRole.EDITOR] = [
             *permissions[FineGrainedAuthorisationRole.CONTRIBUTOR],
@@ -94,6 +94,19 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
 
         return False
 
+    def user_can_create_reporting_org_datasets(self, reporting_org_id: UUID) -> bool:
+
+        if self.is_superadmin:
+            return True
+
+        role_for_org = self.get_user_role_for_reporting_org(reporting_org_id)
+
+        if role_for_org is not None:
+            if "create-dataset" in self.get_permissions_for_role(role_for_org):
+                return True
+
+        return False
+
     def user_can_read_reporting_org_datasets(self, reporting_org_id: UUID) -> bool:
 
         if self.is_superadmin:
@@ -107,6 +120,18 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
 
         return False
 
+    def user_can_modify_users_owned_by_reporting_org(self, reporting_org_id: UUID) -> bool:
+        if self.is_superadmin:
+            return True
+
+        role_for_org = self.get_user_role_for_reporting_org(reporting_org_id)
+
+        if role_for_org is not None:
+            if "set-org-user-authz" in self.get_permissions_for_role(role_for_org):
+                return True
+
+        return False
+
     def get_users_fine_grained_associations(self) -> list[FineGrainedAuthorisationRoleAssociation]:
         if self.fine_grained_authorisations is None:
             return []
@@ -116,31 +141,3 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
         if self.fine_grained_authorisations is None:
             return []
         return [fga.reporting_org for fga in self.fine_grained_authorisations]
-
-    def is_user_authorized_for_dataset(self, permission: str, dataset: UUID) -> bool:
-        """Verifies whether the user has access to perform the operation described by 'scope' on the dataset"""
-
-        # TODO: lookup the reporting org of the dataset
-        # dataset_reporting_org = UUID("01234567-0123-0123-0123-012345678901")
-
-        is_authorised = False
-
-        match permission:
-            case "":
-
-                pass
-            case "":
-                pass
-
-        return is_authorised
-
-    def is_user_authorized_for_reporting_org(self, permission: str, reporting_org: UUID) -> bool:
-        """Verifies whether the user is authorised to perform the specified  on the reporting_org"""
-
-        is_authorised = False
-
-        return is_authorised
-
-    def is_user_authorized_for_user(self, permission: str, user_to_act_on: UUID) -> bool:
-        """Verifies whether a user has access to perform the operation described by 'scope' on the the user"""
-        raise NotImplementedError

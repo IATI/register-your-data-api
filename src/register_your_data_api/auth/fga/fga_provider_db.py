@@ -68,3 +68,8 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
         with Session(self._engine) as session:
             session.add(user_org_role_db)
             session.commit()
+
+    def delete_all_fine_grained_authorisations_for_user(self, user: UUID) -> None:
+        """Deletes all fine grained role associations for a user"""
+        # TODO: Implement this method
+        return None

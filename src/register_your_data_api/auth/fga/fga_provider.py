@@ -31,3 +31,8 @@ class FineGrainedAuthorisationProvider(ABC):
     ) -> None:
         """Creates a new user <-> reporting org fine grained role association"""
         raise NotImplementedError
+
+    @abstractmethod
+    def delete_all_fine_grained_authorisations_for_user(self, user: UUID) -> None:
+        """Deletes all fine grained role associations for a user"""
+        raise NotImplementedError
