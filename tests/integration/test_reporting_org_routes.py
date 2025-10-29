@@ -317,6 +317,21 @@ def test_reporting_org_create_with_missing_fields(user: int) -> None:
             assert response_obj["status"] == "failed"
 
 
+@pytest.mark.parametrize("user,status_code", [(0, 403), (1, 200), (2, 200), (3, 403), (4, 403)])
+def test_reporting_org_delete(user: int, status_code: int) -> None:
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        response = client.delete(
+            "/api/v1/reporting-orgs/552376ae-2aa7-98ab-d800-68daa9bfeb4a",
+            headers=appAndContext.get_valid_authorization_header(user),
+        )
+
+        assert response.status_code == status_code
+
+
 @pytest.mark.parametrize(
     "user,reporting_org_id,status,status_s,num_datasets",
     [
@@ -427,3 +442,68 @@ def test_reporting_org_list_datasets_detail(
         assert dataset["metadata"]["source_type"] == source_type
         assert dataset["metadata"]["url"] == url
         assert dataset["metadata"]["visibility"] == visibility
+
+
+@pytest.mark.parametrize(
+    "user,reporting_org_id,expect_unauthorised,visible_users",
+    [
+        (
+            0,  # user 0 / person 1 is EDITOR for 552376ae-2aa7-98ab-d800-68daa9bfeb4a
+            "552376ae-2aa7-98ab-d800-68daa9bfeb4a",
+            False,
+            {
+                "698e0c1f-4e80-faa9-6533-68de801d1735",
+                "bea511d3-c7a7-4097-55ed-68de81e94921",
+                "7625122c-f752-40dc-a577-5cb49e13de2a",
+            },
+        ),
+        (
+            2,  # user 2 / person 3 is SUPER_ADMIN
+            "552376ae-2aa7-98ab-d800-68daa9bfeb4a",
+            False,
+            {
+                "698e0c1f-4e80-faa9-6533-68de801d1735",
+                "bea511d3-c7a7-4097-55ed-68de81e94921",
+                "7625122c-f752-40dc-a577-5cb49e13de2a",
+                "b46b88bd-05e6-4cb8-8b6a-a2c47fcd666d",
+            },
+        ),
+        (
+            4,  # user 4 / person 5 is PROVIDER_ADMIN for 552376ae-2aa7-98ab-d800-68daa9bfeb4a
+            "552376ae-2aa7-98ab-d800-68daa9bfeb4a",
+            False,
+            {
+                "698e0c1f-4e80-faa9-6533-68de801d1735",
+                "bea511d3-c7a7-4097-55ed-68de81e94921",
+                "7625122c-f752-40dc-a577-5cb49e13de2a",
+                "b46b88bd-05e6-4cb8-8b6a-a2c47fcd666d",
+            },
+        ),
+        (0, "da17734d-3926-47ef-8563-8a1b0247ed11", True, []),
+    ],
+)
+def test_reporting_org_list_users(
+    user: int, reporting_org_id: str, expect_unauthorised: bool, visible_users: set[str]
+) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+
+        response = client.get(
+            f"/api/v1/reporting-orgs/{reporting_org_id}/users",
+            headers=appAndContext.get_valid_authorization_header(user),
+        )
+
+        if expect_unauthorised:
+            assert response.status_code == 403
+        else:
+            assert response.status_code == 200
+
+            resp_json = response.json()
+
+            users_returned = {user["id"] for user in resp_json["data"]}
+
+            assert users_returned == visible_users
