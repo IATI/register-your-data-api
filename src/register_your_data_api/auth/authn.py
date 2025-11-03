@@ -161,7 +161,7 @@ async def validate_and_decode_token(  # noqa: C901
             "provider of the tool you are using to access the IATI Registry.",
         )
 
-    REQUIRED_CLAIMS = set(["sub", "scope", "aud"])
+    REQUIRED_CLAIMS = set(["sub", "scope", "aud", "iatiRegistryId"])
     if len(REQUIRED_CLAIMS.difference(decoded_token)) > 0:
         context.prom_counter_metric_inc("requests_auth_failed_invalid_jwt_total", "missing_data")
         context.audit_logger.critical(

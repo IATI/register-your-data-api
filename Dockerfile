@@ -1,6 +1,8 @@
 FROM python:3.12.11-slim-bookworm
 
-RUN apt-get update -y && apt-get upgrade -y
+RUN apt-get update -y && \
+    apt-get upgrade -y && \
+    apt-get install -y git
 
 WORKDIR /api
 
