@@ -1,7 +1,7 @@
 """Implementation for /reporting-orgs end points"""
 
 import uuid
-from typing import Any, Callable  # noqa
+from typing import Any, Callable
 
 import fastapi
 import starlette
@@ -9,22 +9,20 @@ from fastapi import Security
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from libsuitecrm import Filter, SuiteCRM  # type: ignore
-from libsuitecrm.exceptions import CreateRecordFailed, UpdateRecordFailed  # type: ignore
 
 from ..auth import authz
 from ..auth import models as auth_models
 from ..auth.fga import models as fga_models
 from ..data_handling.converters import (
+    get_dataset_list_from_suitecrm_response,
     get_fga_role_as_str,
-    get_reporting_org_from_suitecrm_response,
+    get_reporting_org_meta_from_suitecrm_response,
     get_suitecrm_dict_from_reporting_org,
 )
 from ..data_handling.data_schemas import (
     CRMUser,
     CRMUserListResponse,
     DatasetListResponse,
-    DatasetMetadata,
-    DatasetReadModel,
     ReportingOrgAction,
     ReportingOrgCreateModel,
     ReportingOrgUpdateModel,
@@ -33,8 +31,8 @@ from ..data_handling.data_schemas import (
     UserReportingOrgRelationSingleResponse,
 )
 from ..data_handling.domain_logic import get_reporting_org_fields_to_fetch
-from ..util import Context  # noqa
-from ..utilities import check_crm_record_exists
+from ..util import Context
+from ..utilities import check_crm_record_exists, perform_undo_actions
 
 router = fastapi.APIRouter(prefix="/api/v1/reporting-orgs")
 
@@ -46,7 +44,8 @@ def get_reporting_orgs(
     include_meta: str = "no",
     include_actions: str = "no",
 ) -> UserReportingOrgRelationListResponse:
-    context = request.app.state.context  # type: Context
+
+    context: Context = request.app.state.context
 
     user_reporting_org_associations = user.validator.get_users_fine_grained_associations()
 
@@ -54,7 +53,7 @@ def get_reporting_orgs(
 
     if len(user_reporting_org_associations) > 0:
 
-        crm = context.get_suitecrm_client()
+        crm: SuiteCRM = context.get_suitecrm_client()
 
         crm.fetch_access_token()
 
@@ -63,15 +62,18 @@ def get_reporting_orgs(
         # The OR search in SuiteCRM appears to be broken; you can't search for items where id = 'A' OR id = 'B' OR ...
         # It appears this doesn't work when the field being searched on is the same in each case. So we have to fetch
         # the details for reporting orgs the user is associated with one at a time.
-        suitecrm_collected_responses = []  # type: list[dict[str, Any]]
+        suitecrm_collected_responses: list[dict[str, Any]] = []
         for user_reporting_org_association in user_reporting_org_associations:
             filters = Filter()
             filters.equal("id", str(user_reporting_org_association.reporting_org))
             crm_reporting_org = crm.get_records("Accounts", fields=fields, filters=filters)
-            suitecrm_collected_responses.append(*crm_reporting_org["data"])
+            if "data" in crm_reporting_org and len(crm_reporting_org["data"]) > 0:
+                suitecrm_collected_responses.append(*crm_reporting_org["data"])
 
         for reporting_org_from_suitecrm in suitecrm_collected_responses:
-            reporting_org_obj = get_reporting_org_from_suitecrm_response(reporting_org_from_suitecrm["attributes"])
+            reporting_org_obj = get_reporting_org_meta_from_suitecrm_response(
+                reporting_org_from_suitecrm["attributes"]
+            )
 
             role_for_org = user.validator.get_user_role_for_reporting_org(reporting_org_from_suitecrm["id"])
 
@@ -99,7 +101,7 @@ def get_reporting_org_detail(
     include_actions: str = "no",
 ) -> UserReportingOrgRelationSingleResponse:
 
-    context = request.app.state.context  # type: Context
+    context: Context = request.app.state.context
 
     if not user.validator.user_can_read_reporting_org(org_id):
         context.audit_logger.error(
@@ -115,7 +117,7 @@ def get_reporting_org_detail(
     filters = Filter()
     filters.equal("id", str(org_id))
 
-    crm = context.get_suitecrm_client()
+    crm: SuiteCRM = context.get_suitecrm_client()
 
     crm.fetch_access_token()
 
@@ -125,10 +127,11 @@ def get_reporting_org_detail(
 
     if len(crm_reporting_orgs["data"]) == 0:
         raise HTTPException(
-            status_code=fastapi.status.HTTP_404_NOT_FOUND, detail="Organisation UUID is not known in the registry."
+            status_code=fastapi.status.HTTP_404_NOT_FOUND,
+            detail=f"There is no organisation with ID {str(org_id)} in the Registry.",
         )
 
-    reporting_org = get_reporting_org_from_suitecrm_response(crm_reporting_orgs["data"][0]["attributes"])
+    reporting_org = get_reporting_org_meta_from_suitecrm_response(crm_reporting_orgs["data"][0]["attributes"])
 
     user_reporting_org_relation = UserReportingOrgRelation(
         id=str(org_id),
@@ -149,7 +152,7 @@ def create_reporting_org(
     ),
 ) -> UserReportingOrgRelationSingleResponse:
 
-    context = request.app.state.context  # type: Context
+    context: Context = request.app.state.context
 
     if not user.validator.user_can_create_reporting_org():
         context.audit_logger.error(f"Request to create reporting org by unauthorised user id: {user.user_id_crm}")
@@ -159,9 +162,9 @@ def create_reporting_org(
             "error to the provider of the tool you are using to access the IATI Registry.",
         )
 
-    undo_actions = []  # type: list[Callable[[None],None]]
+    undo_actions: list[tuple[str, Callable[[], Any]]] = []
 
-    crm = context.get_suitecrm_client()  # type: SuiteCRM
+    crm: SuiteCRM = context.get_suitecrm_client()
 
     crm.fetch_access_token()
 
@@ -169,12 +172,27 @@ def create_reporting_org(
         # 1. Create the reporting on SuiteCRM
         reporting_org_for_suitecrm = get_suitecrm_dict_from_reporting_org(reporting_org)
         suitecrm_reporting_org = crm.create_record("Accounts", reporting_org_for_suitecrm)
-        new_reporting_org = get_reporting_org_from_suitecrm_response(suitecrm_reporting_org["attributes"])
-        undo_actions.append(lambda: crm.delete_record("Accounts", suitecrm_reporting_org["id"]))  # type: ignore
+        new_reporting_org = get_reporting_org_meta_from_suitecrm_response(suitecrm_reporting_org["attributes"])
+        undo_actions.append(
+            (
+                f"delete organisation with id: {suitecrm_reporting_org["id"]}",
+                lambda: crm.delete_record("Accounts", suitecrm_reporting_org["id"]),
+            )
+        )
 
-        # 2. TODO: Create a relationship between the current user and the
-        # reporting org in SuiteCRM, but only if user is not operating in the
-        # capacity as a super_admin
+        # 2. Create a relationship between the current user (Contacts) and the
+        # reporting org (Accounts) in SuiteCRM, but only if user is not
+        # operating in the capacity as a super_admin
+        if not user.validator.is_superadmin:
+            crm.create_relationship("Accounts", suitecrm_reporting_org["id"], "contacts", "Contacts", user.user_id_crm)
+            undo_msg = (
+                "delete relationship between organisation id: "
+                f"{suitecrm_reporting_org["id"]} and user id: {user.user_id_crm}"
+            )
+            undo_func: Callable[[], Any] = lambda: crm.delete_relationship(
+                "Accounts", suitecrm_reporting_org["id"], "contacts", user.user_id_crm
+            )
+            undo_actions.append((undo_msg, undo_func))
 
         # 3. Create a fine-grained authorisation for this user to be ADMIN of new reporting_org
         user_reporting_org_role = fga_models.FineGrainedAuthorisationRoleAssociation(
@@ -184,16 +202,13 @@ def create_reporting_org(
         )
         context.fine_grained_auth_provider.create_user_fine_grained_authorisation(user_reporting_org_role)
 
-    except Exception as e:
-        # TODO: call each of the callbacks
+    except Exception:
+        error_trace_id: uuid.UUID = perform_undo_actions(context, undo_actions, "create_reporting_org")
 
-        match e:
-            case CreateRecordFailed():
-                # TODO: add logging
-                raise HTTPException(status_code=fastapi.status.HTTP_400_BAD_REQUEST, detail=e.msg)
-            case _:
-                # TODO: add logging
-                raise e
+        raise HTTPException(
+            fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"There was a problem creating the reporting org. Error id: {error_trace_id}",
+        )
 
     user_reporting_org = UserReportingOrgRelation(
         id=suitecrm_reporting_org["id"],
@@ -216,7 +231,7 @@ def update_reporting_org(
     ),
 ) -> UserReportingOrgRelationSingleResponse:
 
-    context = request.app.state.context  # type: Context
+    context: Context = request.app.state.context
 
     if not user.validator.user_can_update_reporting_org(org_id):
         context.audit_logger.error(
@@ -236,21 +251,22 @@ def update_reporting_org(
     # 1. Query SuiteCRM to check that the reporting_org exists
     if not check_crm_record_exists(crm, "Accounts", str(org_id)):
         raise HTTPException(
-            status_code=fastapi.status.HTTP_404_NOT_FOUND, detail="Organisation UUID is not known in the registry."
+            status_code=fastapi.status.HTTP_404_NOT_FOUND,
+            detail=f"There is no organisation with ID {str(org_id)} in the Registry.",
         )
 
     # 2. Make request to SuiteCRM to update reporting_org
     reporting_org_for_suitecrm = get_suitecrm_dict_from_reporting_org(updated_reporting_org)
     try:
         suitecrm_reporting_org = crm.update_record("Accounts", str(org_id), reporting_org_for_suitecrm)
-        updated_reporting_org_from_suitecrm = get_reporting_org_from_suitecrm_response(
+        updated_reporting_org_from_suitecrm = get_reporting_org_meta_from_suitecrm_response(
             suitecrm_reporting_org["attributes"]
         )
-    except UpdateRecordFailed as e:
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-            detail=e.msg,
-        )
+    except Exception:
+        error_id = uuid.uuid4()
+        context.app_logger.exception(f"Unexpected error in update_reporting_org. Error trace id: {error_id}")
+        public_error_message = f"There was a problem updating the reporting org. Error id: {error_id}"
+        raise HTTPException(status_code=fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR, detail=public_error_message)
 
     user_reporting_org_relation = UserReportingOrgRelation(
         id=str(org_id),
@@ -264,29 +280,17 @@ def update_reporting_org(
 
 @router.delete("/{org_id}")
 def delete_reporting_org(
-    org_id: str,
+    org_id: uuid.UUID,
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:delete"]),
 ) -> JSONResponse:
 
-    raise HTTPException(
-        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Not yet implemented",
-    )
+    context: Context = request.app.state.context
 
-
-@router.get("/{org_id}/users")
-def get_reporting_org_users(
-    org_id: uuid.UUID,
-    request: starlette.requests.Request,
-    user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:user"]),
-) -> CRMUserListResponse:
-
-    context = request.app.state.context  # type: Context
-
-    if not user.validator.user_can_read_reporting_org(org_id):
+    if not user.validator.user_can_delete_reporting_org(org_id):
         context.audit_logger.error(
-            f"Request to read reporting org users for org id: {org_id} " f"by unauthorised user id: {user.user_id_crm}"
+            f"Request to update reporting org details for org id: {str(org_id)} "
+            f"by unauthorised user id: {user.user_id_crm}"
         )
         raise HTTPException(
             status_code=fastapi.status.HTTP_403_FORBIDDEN,
@@ -297,6 +301,44 @@ def get_reporting_org_users(
     crm: SuiteCRM = context.get_suitecrm_client()
 
     crm.fetch_access_token()
+
+    # TODO: finish implementation of delete_reporting_org
+
+    # 1. Set iati_registry_approved to False on the reporting org to disable further dataset publishing
+    # crm.update_record("Accounts", str(org_id), {"iati_registry_approved": False})
+
+    # 2. Delete user<->org relationships in SuiteCRM
+
+    # 3. Delete user-org role associations in the FGA database
+    # context.fine_grained_auth_provider.delete_all_fine_grained_authorisations_for_user(org_id)
+
+    return fastapi.responses.JSONResponse({"status": "success", "data": None, "error": None})
+
+
+@router.get("/{org_id}/users")
+def get_reporting_org_users(
+    org_id: uuid.UUID,
+    request: starlette.requests.Request,
+    user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:user"]),
+) -> CRMUserListResponse:
+
+    context: Context = request.app.state.context
+
+    if not user.validator.user_can_read_reporting_org(org_id):
+        context.audit_logger.error(
+            f"Request to read reporting org users for org id: {org_id} by unauthorised user id: {user.user_id_crm}"
+        )
+        raise HTTPException(
+            status_code=fastapi.status.HTTP_403_FORBIDDEN,
+            detail="There is a problem with your credentials.  If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry.",
+        )
+
+    crm: SuiteCRM = context.get_suitecrm_client()
+
+    crm.fetch_access_token()
+
+    current_user_role_for_ro = user.validator.get_user_role_for_reporting_org(org_id)
 
     users_for_org_from_suitecrm = crm.get_relationship("Accounts", str(org_id), "Contacts")
 
@@ -330,6 +372,11 @@ def get_reporting_org_users(
             role=get_fga_role_as_str(u.role),
         )
         for u in users_for_org_from_fga
+        if (
+            u.role != fga_models.FineGrainedAuthorisationRole.PROVIDER_ADMIN
+            or current_user_role_for_ro == fga_models.FineGrainedAuthorisationRole.PROVIDER_ADMIN
+            or user.validator.is_superadmin
+        )
     ]
 
     return CRMUserListResponse(data=users_for_org, status="success", error=None)
@@ -342,7 +389,7 @@ def get_reporting_org_datasets(
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:dataset"]),
 ) -> DatasetListResponse:
 
-    context = request.app.state.context  # type: Context
+    context: Context = request.app.state.context
 
     if not user.validator.user_can_read_reporting_org_datasets(org_id):
         context.audit_logger.error(
@@ -362,7 +409,8 @@ def get_reporting_org_datasets(
     # 1. Check that the Reporting Org exists in the CRM
     if not check_crm_record_exists(crm, "Accounts", str(org_id)):
         raise HTTPException(
-            status_code=fastapi.status.HTTP_404_NOT_FOUND, detail="Organisation UUID is not known in the registry."
+            status_code=fastapi.status.HTTP_404_NOT_FOUND,
+            detail=f"There is no organisation with ID {str(org_id)} in the Registry.",
         )
 
     # 2. Fetch the datasets
@@ -370,23 +418,7 @@ def get_reporting_org_datasets(
     filters.equal("iati_dataset_owner_org_id", str(org_id))
     datasets_from_suitecrm = crm.get_records("IATI_Datasets", filters=filters)
 
-    datasets = [
-        DatasetReadModel(
-            id=d["id"],
-            owner_organisation_id=d["attributes"]["iati_dataset_owner_org_id"],
-            metadata=DatasetMetadata(
-                human_readable_name=d["attributes"]["name"],
-                short_name=d["attributes"]["iati_short_name"],
-                source_type=d["attributes"]["iati_source_type"],
-                url=d["attributes"]["iati_dataset_url"],
-                visibility=d["attributes"]["iati_visibility"],
-                licence_id=d["attributes"]["iati_licence_id"],
-                last_url_update_date=d["attributes"]["iati_url_update_date"],
-                last_metadata_update_date=d["attributes"]["iati_metadata_update_date"],
-            ),
-        )
-        for d in datasets_from_suitecrm["data"]
-    ]
+    datasets = get_dataset_list_from_suitecrm_response(datasets_from_suitecrm)
 
     return DatasetListResponse(data=datasets, error=None, status="success")
 

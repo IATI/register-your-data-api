@@ -163,6 +163,8 @@ class MockedAppAndContext:
         self._mocked_user_ids.append(UUID("698e0c1f-4e80-faa9-6533-68de801d1735"))  # Person One
         self._mocked_user_ids.append(UUID("bea511d3-c7a7-4097-55ed-68de81e94921"))  # Person Two
         self._mocked_user_ids.append(UUID("a1b191ee-4c12-461c-cbe1-68de8173f628"))  # Person Three
+        self._mocked_user_ids.append(UUID("7625122c-f752-40dc-a577-5cb49e13de2a"))  # Person Four
+        self._mocked_user_ids.append(UUID("b46b88bd-05e6-4cb8-8b6a-a2c47fcd666d"))  # Person Five
 
         self._mocked_reporting_org_ids.append(UUID("552376ae-2aa7-98ab-d800-68daa9bfeb4a"))  # aid-agency-01
         self._mocked_reporting_org_ids.append(UUID("ab851a83-a384-3eb9-caf0-68db8125b067"))  # agency-02
@@ -224,7 +226,10 @@ class MockedAppAndContext:
         claims = make_access_token_payload(
             subject=str(self._mocked_user_ids[test_user_num]),
             audience="iati_register_your_data",
-            scopes="ryd ryd:reporting_org ryd:reporting_org:create ryd:reporting_org:update ryd:dataset",
+            scopes=(
+                "ryd ryd:reporting_org ryd:reporting_org:create ryd:reporting_org:update "
+                "ryd:reporting_org:delete ryd:reporting_org:user ryd:reporting_org:user:update ryd:dataset"
+            ),
         )
         token = jwt.encode(claims, self._JWKS_KEYS["key1"][0], algorithm="RS256", headers={"kid": "key1"})
         return {"Authorization": "Bearer " + token}
@@ -282,6 +287,8 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
         # Pesron One / User index 0   = UUID("698e0c1f-4e80-faa9-6533-68de801d1735")
         # Person Two / User index 1   = UUID("bea511d3-c7a7-4097-55ed-68de81e94921")
         # Person Three / User index 2 = UUID("a1b191ee-4c12-461c-cbe1-68de8173f628")
+        # Person Four / User index 3  = UUID("7625122c-f752-40dc-a577-5cb49e13de2a")
+        # Person Five / User index 4  = UUID("b46b88bd-05e6-4cb8-8b6a-a2c47fcd666d")
 
         # Aid Agency 01 / index 0 = UUID("552376ae-2aa7-98ab-d800-68daa9bfeb4a")
         # Agency 02     / index 1 = UUID("ab851a83-a384-3eb9-caf0-68db8125b067")
@@ -321,6 +328,32 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
 
         # Add user 3 roles.
         session.add(SuperAdminUserDbModel(user=app_and_context._mocked_user_ids[2], is_superadmin=True))
+
+        # Add User 4 roles
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=app_and_context._mocked_user_ids[3],
+                reporting_org=app_and_context._mocked_reporting_org_ids[0],
+                role=FineGrainedAuthorisationRole.CONTRIBUTOR,
+            )
+        )
+
+        # Add User 5 roles
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=app_and_context._mocked_user_ids[4],
+                reporting_org=app_and_context._mocked_reporting_org_ids[0],
+                role=FineGrainedAuthorisationRole.PROVIDER_ADMIN,
+            )
+        )
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=app_and_context._mocked_user_ids[4],
+                reporting_org=app_and_context._mocked_reporting_org_ids[1],
+                role=FineGrainedAuthorisationRole.PROVIDER_ADMIN,
+            )
+        )
+
         session.commit()
 
     return test_context

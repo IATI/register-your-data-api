@@ -1,6 +1,6 @@
 [project]
 name = "register-your-data-api"
-version = "0.1.0"
+version = "0.1.1"
 requires-python = ">= 3.12.11"
 readme = "README.md"
 authors = [{name="IATI Secretariat", email="support@iatistandard.org"}]
@@ -59,7 +59,7 @@ strip-extras = true
 
 [tool.isort]
 py_version=312
-extend_skip = ['__pycache__']
+extend_skip = ['__pycache__', '.ve', '.venv']
 skip_gitignore = true
 src_paths = ['src', 'tests']
 line_length = 119

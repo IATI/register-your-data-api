@@ -94,3 +94,29 @@ class MockSuiteCRM:
                 **data,
             },
         }
+
+    def delete_record(self, module_name: str, id: str) -> None:
+        return None
+
+    def create_relationship(
+        self, module_name: str, record_id: str, link_field_name: str, related_module_name: str, related_id: str
+    ) -> None:
+        return None
+
+    def get_relationship(self, module_name: str, id: str, link_field_name: str) -> Any:
+
+        response = None
+
+        if module_name == "Accounts":
+            file = f"tests/artefacts/suitecrm-mocked-responses/get_relationship_ro_{id}.json"
+            if os.path.isfile(file):
+                with open(file, "r") as fh:
+                    content = fh.read()
+                    response = json.loads(content)
+        else:
+            raise NotImplementedError()
+
+        return response
+
+    def delete_relationship(self, module_name: str, id: str, link_field_name: str, related_id: str) -> None:
+        return None

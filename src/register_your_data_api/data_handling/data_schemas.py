@@ -1,11 +1,34 @@
 import pydantic
 
 
+class OrganisationId(pydantic.BaseModel):
+    oid: str
+
+
 class CRMUser(pydantic.BaseModel):
     id: str
     name: str
     email: str
     role: str
+
+
+class DatasetCreateModel(pydantic.BaseModel):
+    human_readable_name: str
+    licence_id: str
+    owner_organisation_id: str
+    short_name: str
+    source_type: str
+    url: str
+    visibility: str
+
+
+class DatasetUpdateModel(pydantic.BaseModel):
+    human_readable_name: str
+    licence_id: str
+    short_name: str
+    source_type: str
+    url: str
+    visibility: str
 
 
 class DatasetMetadata(pydantic.BaseModel):
@@ -112,6 +135,12 @@ class CRMUserListResponse(pydantic.BaseModel):
 
 class DatasetListResponse(pydantic.BaseModel):
     data: list[DatasetReadModel]
+    error: str | None
+    status: str
+
+
+class DatasetSingleResponse(pydantic.BaseModel):
+    data: DatasetReadModel
     error: str | None
     status: str
 
