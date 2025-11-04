@@ -25,6 +25,7 @@ from tests.helpers.keys import KeyDict
 
 from ..helpers import prom
 from .mocked_objects.mock_suitecrm import MockSuiteCRM
+from .setup_and_teardown import setup_db
 
 
 class MockKeyStore:
@@ -279,6 +280,7 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
     # Add sqlite FGA provider and populate with test values
     if os.path.isfile("test.db"):
         os.unlink("test.db")
+    setup_db("sqlite:///test.db")
     test_context._fga_provider = FineGrainedAuthorisationProviderDb("sqlite:///test.db")
     test_context._fga_provider.setup()
 
@@ -335,6 +337,13 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
                 user=app_and_context._mocked_user_ids[3],
                 reporting_org=app_and_context._mocked_reporting_org_ids[0],
                 role=FineGrainedAuthorisationRole.CONTRIBUTOR,
+            )
+        )
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=app_and_context._mocked_user_ids[3],
+                reporting_org=app_and_context._mocked_reporting_org_ids[1],
+                role=FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING,
             )
         )
 

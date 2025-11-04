@@ -4,6 +4,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from register_your_data_api.data_handling.data_schemas import ReportingOrgLimitedMetadata, ReportingOrgMetadata
+
 from ..helpers.mocking import MockedAppAndContext
 from ..helpers.utilities import is_valid_uuid
 
@@ -85,6 +87,55 @@ def find_reporting_org_in_response(resp_as_object: dict[str, Any], reporting_org
         if reporting_org["id"] == reporting_org_id:
             return reporting_org  # type: ignore
     return None
+
+
+def test_reporting_orgs_fetch_user_to_org_associations_gets_correct_fields() -> None:
+
+    reporting_org_details = [
+        ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01", True),
+        ("ab851a83-a384-3eb9-caf0-68db8125b067", "agency-02", False),
+    ]
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        response = client.get(
+            "/api/v1/reporting-orgs",
+            headers=appAndContext.get_valid_authorization_header(3),
+            params={"include_meta": "yes"},
+        )
+
+        assert response.status_code == 200
+
+        resp_as_object = json.loads(response.content)
+
+        assert len(resp_as_object["data"]) == len(reporting_org_details)
+
+        for reporting_org in reporting_org_details:
+            reporting_org_response_object = find_reporting_org_in_response(resp_as_object, reporting_org[0])
+
+            assert reporting_org_response_object is not None
+            assert "metadata" in reporting_org_response_object
+
+            # it should have full info
+            if reporting_org[2]:
+                assert len(reporting_org_response_object["metadata"]) == len(ReportingOrgMetadata.model_fields.keys())
+
+                assert reporting_org_response_object["metadata"]["data_portal_url"] is not None
+                assert reporting_org_response_object["metadata"]["default_licence_id"] is not None
+                assert reporting_org_response_object["metadata"]["description"] is not None
+                assert reporting_org_response_object["metadata"]["exclusions_policy_url"] is not None
+                assert reporting_org_response_object["metadata"]["hq_country"] is not None
+                assert reporting_org_response_object["metadata"]["organisation_type"] is not None
+                assert reporting_org_response_object["metadata"]["region"] is not None
+                assert reporting_org_response_object["metadata"]["website"] is not None
+
+            else:
+                assert len(reporting_org_response_object["metadata"]) == len(
+                    ReportingOrgLimitedMetadata.model_fields.keys()
+                )
 
 
 def test_reporting_org_detail_handles_non_uuid() -> None:
