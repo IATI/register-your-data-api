@@ -8,6 +8,7 @@ license = {file = "LICENSE"}
 description = "API for writing to the IATI Registry"
 
 dependencies = [
+    "alembic",
     "click",
     "cryptography==45.0.5",
     "fastapi[standard]==0.116.0",
@@ -33,6 +34,33 @@ dev = [
     "pip-tools",
     "pytest"
 ]
+
+[tool.alembic]
+script_location = "alembic"
+prepend_sys_path = ["."]
+version_path_separator = "os"
+sqlalchemy.url = ""
+
+# Logging configuration
+[tool.alembic.logger_alembic]
+level = "INFO"
+handlers = ""
+qualname = "alembic"
+
+[tool.alembic.logger_root]
+level = "WARN"
+handlers = "console"
+qualname = ""
+
+[tool.alembic.handler_console]
+class = "StreamHandler"
+args = "(sys.stderr,)"
+level = "NOTSET"
+formatter = "generic"
+
+[tool.alembic.formatter_generic]
+format = "%(levelname)-5.5s [%(name)s] %(message)s"
+datefmt = "%H:%M:%S"
 
 [tool.bandit]
 exclude_dirs = ['.ve', '.venv', '.mypy_cache', '.pytest_cache']
