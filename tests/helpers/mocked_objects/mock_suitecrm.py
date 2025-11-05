@@ -95,6 +95,9 @@ class MockSuiteCRM:
             },
         }
 
+    def update_record(self, module_name: str, id: str, data: dict[str, Any]) -> None:
+        return None
+
     def delete_record(self, module_name: str, id: str) -> None:
         return None
 
