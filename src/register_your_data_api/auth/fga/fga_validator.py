@@ -12,9 +12,10 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
     is_superadmin: bool
 
     def get_permissions_for_role(self, user_role: FineGrainedAuthorisationRole) -> list[str]:
-        permissions = {
-            FineGrainedAuthorisationRole.CONTRIBUTOR: ["read-org", "create-dataset", "read-dataset", "update-dataset"]
-        }  # type: dict[FineGrainedAuthorisationRole, list[str]]
+        permissions: dict[FineGrainedAuthorisationRole, list[str]] = {
+            FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING: [],
+            FineGrainedAuthorisationRole.CONTRIBUTOR: ["read-org", "create-dataset", "read-dataset", "update-dataset"],
+        }
         permissions[FineGrainedAuthorisationRole.EDITOR] = [
             *permissions[FineGrainedAuthorisationRole.CONTRIBUTOR],
             "update-org",
@@ -129,6 +130,19 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
 
         if role_for_org is not None:
             if "update-dataset" in self.get_permissions_for_role(role_for_org):
+                return True
+
+        return False
+
+    def user_can_update_reporting_org_dataset_visibility(self, reporting_org_id: UUID) -> bool:
+
+        if self.is_superadmin:
+            return True
+
+        role_for_org = self.get_user_role_for_reporting_org(reporting_org_id)
+
+        if role_for_org is not None:
+            if "update-dataset-visibility" in self.get_permissions_for_role(role_for_org):
                 return True
 
         return False

@@ -45,8 +45,10 @@ def add_exception_handlers(app: fastapi.FastAPI) -> None:
         msg = ""
         for validation_error in exc._errors:
             match validation_error["type"]:
+                case "literal_error":
+                    msg = f"Field '{validation_error["loc"][1]}' contains an invalid value: {validation_error["msg"]}."
                 case "string_too_short":
-                    msg = f"Field {validation_error["loc"][1]} cannot be null or empty."
+                    msg = f"Field '{validation_error["loc"][1]}' cannot be null or empty."
                 case "missing":
                     msg = f"There is a missing field. {validation_error["msg"]}: {validation_error["loc"][1]}"
                 case "uuid_parsing":

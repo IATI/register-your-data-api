@@ -1,3 +1,5 @@
+from typing import Literal
+
 import pydantic
 
 
@@ -28,7 +30,7 @@ class DatasetUpdateModel(pydantic.BaseModel):
     short_name: str
     source_type: str
     url: str
-    visibility: str
+    visibility: Literal["public", "private"] | None = None
 
 
 class DatasetMetadata(pydantic.BaseModel):
