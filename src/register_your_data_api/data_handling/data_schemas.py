@@ -111,6 +111,16 @@ class ReportingOrgMetadata(pydantic.BaseModel):
     website: str | None = pydantic.Field(None)
 
 
+class ReportingOrgLimitedMetadata(pydantic.BaseModel):
+
+    hq_country: str | None = pydantic.Field(None)
+    human_readable_name: str
+    organisation_identifier: str
+    region: str | None = pydantic.Field(None)
+    short_name: str | None
+    website: str | None = pydantic.Field(None)
+
+
 class ReportingOrgAction(pydantic.BaseModel):
     action_type: str
     user_application_name: str
@@ -122,7 +132,14 @@ class ReportingOrgAction(pydantic.BaseModel):
 
 class UserReportingOrgRelation(pydantic.BaseModel):
     id: str
-    metadata: ReportingOrgMetadata
+    metadata: ReportingOrgMetadata | ReportingOrgLimitedMetadata
+    reporting_org_actions: list  # type: ignore
+    user_role: str
+
+
+class UserReportingOrgLimitedMetadataRelation(pydantic.BaseModel):
+    id: str
+    metadata: ReportingOrgLimitedMetadata
     reporting_org_actions: list  # type: ignore
     user_role: str
 
@@ -154,6 +171,6 @@ class UserReportingOrgRelationSingleResponse(pydantic.BaseModel):
 
 class UserReportingOrgRelationListResponse(pydantic.BaseModel):
 
-    data: list[UserReportingOrgRelation]
+    data: list[UserReportingOrgRelation | UserReportingOrgLimitedMetadataRelation]
     error: str | None = pydantic.Field(None)
     status: str

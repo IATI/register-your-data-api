@@ -7,6 +7,7 @@ from .data_schemas import (
     DatasetReadModel,
     DatasetUpdateModel,
     ReportingOrgCreateModel,
+    ReportingOrgLimitedMetadata,
     ReportingOrgMetadata,
     ReportingOrgUpdateModel,
 )
@@ -102,6 +103,24 @@ def get_reporting_org_meta_from_suitecrm_response(suitecrm_response: dict[str, A
     return ReportingOrgMetadata(**dict_with_ryd_api_field_names)
 
 
+def get_reporting_org_limited_meta_from_suitecrm_response(
+    suitecrm_response: dict[str, Any],
+) -> ReportingOrgLimitedMetadata:
+    """Gets a native ReportingOrgLimitedMetadata object from a SuiteCRM response"""
+
+    limited_fields = list(ReportingOrgLimitedMetadata.model_fields.keys())
+
+    cleaned_response = get_dict_with_specified_fields(suitecrm_response, SUITECRM_REPORTING_ORG_FIELDS)
+
+    dict_with_ryd_api_field_names = {
+        SUITECRM_TO_RYD_API_REPORTING_ORG_FIELD_MAP[k]: v
+        for k, v in cleaned_response.items()
+        if SUITECRM_TO_RYD_API_REPORTING_ORG_FIELD_MAP[k] in limited_fields
+    }
+
+    return ReportingOrgLimitedMetadata(**dict_with_ryd_api_field_names)
+
+
 def get_suitecrm_dict_from_dataset(dataset: DatasetCreateModel | DatasetUpdateModel) -> dict[str, Any]:
     suitecrm_dict = {RYD_API_TO_SUITECRM_DATASET_FIELD_MAP[k]: v for k, v in dataset}
     return suitecrm_dict
@@ -126,3 +145,5 @@ def get_fga_role_as_str(role: FineGrainedAuthorisationRole) -> str:
             return "provider_admin"
         case FineGrainedAuthorisationRole.SUPER_ADMIN:
             return "super_admin"
+        case FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING:
+            return "contributor_pending"
