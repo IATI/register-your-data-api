@@ -42,7 +42,12 @@ def add_exception_handlers(app: fastapi.FastAPI) -> None:
     async def validation_exception_handler(
         request: starlette.requests.Request, exc: RequestValidationError
     ) -> fastapi.responses.JSONResponse:
-        msg = ""
+
+        context: Context = request.app.state.context
+
+        context.app_logger.warning(f"Validation error: {exc} for request: {request.url}")
+
+        msg = "Data validation error."
         for validation_error in exc._errors:
             match validation_error["type"]:
                 case "literal_error":

@@ -14,6 +14,10 @@ class CRMUser(pydantic.BaseModel):
     role: str
 
 
+class UserRoleUpdateModel(pydantic.BaseModel):
+    role: Literal["admin", "editor", "contributor"]
+
+
 class DatasetCreateModel(pydantic.BaseModel):
     human_readable_name: str
     licence_id: str

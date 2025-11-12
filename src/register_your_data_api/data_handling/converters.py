@@ -147,3 +147,20 @@ def get_fga_role_as_str(role: FineGrainedAuthorisationRole) -> str:
             return "super_admin"
         case FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING:
             return "contributor_pending"
+
+
+def get_fga_role_from_str(role: str) -> FineGrainedAuthorisationRole:
+    match role:
+        case "admin":
+            return FineGrainedAuthorisationRole.ADMIN
+        case "contributor":
+            return FineGrainedAuthorisationRole.CONTRIBUTOR
+        case "editor":
+            return FineGrainedAuthorisationRole.EDITOR
+        case "provider_admin":
+            return FineGrainedAuthorisationRole.PROVIDER_ADMIN
+        case "super_admin":
+            return FineGrainedAuthorisationRole.SUPER_ADMIN
+        case "contributor_pending":
+            return FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING
+    raise ValueError(f"Unknown role string: {role}")
