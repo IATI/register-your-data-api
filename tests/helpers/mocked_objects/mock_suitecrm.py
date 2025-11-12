@@ -47,8 +47,7 @@ class MockSuiteCRM:
     ) -> Any:
 
         file = ""
-        error_message = ""
-        response = {"data": []}  # type: dict[str, Any]
+        response: dict[str, Any] = {"data": []}
 
         if module_name == "Accounts":
             num_fields_no_meta = len(get_reporting_org_fields_to_fetch(False))
@@ -60,27 +59,32 @@ class MockSuiteCRM:
             file = (
                 f"tests/artefacts/suitecrm-mocked-responses/get_records_reporting_orgs_{reporting_org_id}_{meta}.json"
             )
-            error_message = f"There is no mocked SuiteCR Mresponse for reporting org ID {reporting_org_id}"
 
         elif module_name == "IATI_Datasets":
 
             reporting_org_id = self.get_filter_value(filters, "filter[iati_dataset_owner_org_id][eq]", "empty")
 
             file = f"tests/artefacts/suitecrm-mocked-responses/get_records_datasets_for_ro_{reporting_org_id}.json"
-            error_message = f"There is no mocked SuiteCR Mresponse for reporting org ID {reporting_org_id}"
+
+        elif module_name == "Contacts":
+
+            contact_id = self.get_filter_value(filters, "filter[id][eq]", "empty")
+
+            file = f"tests/artefacts/suitecrm-mocked-responses/get_records_contact_{contact_id}.json"
 
         else:
 
             file = f"tests/artefacts/suitecrm-mocked-responses/{self._response_file}"
-            error_message = "You must call set_response_file() to set up the mocked response"
+
+        if not os.path.isfile(file):
+            file = "tests/artefacts/suitecrm-mocked-responses/get_records_empty.json"
 
         try:
-            if os.path.isfile(file):
-                with open(file, "r") as fh:
-                    content = fh.read()
-                    response = json.loads(content)
-        except AttributeError:
-            raise RuntimeError(error_message)
+            with open(file, "r") as fh:
+                content = fh.read()
+                response = json.loads(content)
+        except Exception:
+            raise RuntimeError("Unexpected error loading mocked SuiteCRM response from file {file}")
 
         return response
 
