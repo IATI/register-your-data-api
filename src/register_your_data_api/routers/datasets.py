@@ -23,7 +23,7 @@ from ..data_handling.data_schemas import (
     DatasetUpdateModel,
 )
 from ..util import Context
-from ..utilities import check_crm_record_exists
+from ..utilities import assert_precondition_met, check_crm_record_exists
 
 router = fastapi.APIRouter(prefix="/api/v1/datasets")
 
@@ -198,7 +198,54 @@ def delete_dataset(
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:dataset:delete"]),
 ) -> JSONResponse:
-    raise fastapi.HTTPException(
-        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Not yet implemented",
+
+    context: Context = request.app.state.context
+
+    crm: SuiteCRM = context.get_suitecrm_client()
+
+    crm.fetch_access_token()
+
+    # Fetch the original dataset record so we know which reporting org it belongs to
+    ds_filters = Filter()
+    ds_filters.equal("id", str(dataset_id))
+    original_dataset_record_from_suitecrm = crm.get_records(
+        "IATI_Datasets", fields=["iati_dataset_owner_org_id"], filters=ds_filters
     )
+
+    assert_precondition_met(
+        context,
+        condition_func=lambda: len(original_dataset_record_from_suitecrm["data"]) == 1,
+        status_code=fastapi.status.HTTP_404_NOT_FOUND,
+        public_msg=f"There is no dataset with ID {str(dataset_id)} in the Registry.",
+    )
+
+    owning_reporting_org = original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_dataset_owner_org_id"]
+
+    assert_precondition_met(
+        context,
+        condition_func=lambda: user.validator.user_can_delete_reporting_org_datasets(uuid.UUID(owning_reporting_org)),
+        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+        public_msg=(
+            "There is a problem with your credentials.  If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry."
+        ),
+        audit_log_msg=(
+            f"Request to delete dataset for reporting org id: {owning_reporting_org} "  # nosec B608
+            f"by unauthorised user id: {user.user_id_crm}"
+        ),
+    )
+
+    try:
+        crm.delete_record("IATI_Datasets", str(dataset_id))
+    except Exception:
+        error_id = uuid.uuid4()
+        context.app_logger.exception(
+            f"Unexpected error deleting dataset id: {dataset_id} for reporting org id: {owning_reporting_org} "
+            f"by user id: {user.user_id_crm}. Error trace id: {error_id}."
+        )
+        raise HTTPException(
+            status_code=fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"There was a problem deleting the dataset. Error id: {error_id}",
+        )
+
+    return fastapi.responses.JSONResponse({"status": "success", "data": None, "error": None})
