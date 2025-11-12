@@ -49,6 +49,20 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
 
         return [FineGrainedAuthorisationRoleAssociation(**db_fga.model_dump()) for db_fga in user_db_fgas]
 
+    def get_user_role_for_org(self, user: UUID, org: UUID) -> FineGrainedAuthorisationRoleAssociation | None:
+        with Session(self._engine) as session:
+            user_role_for_org = session.exec(
+                select(FineGrainedAuthorisationDbModel).where(
+                    (FineGrainedAuthorisationDbModel.user == user)
+                    & (FineGrainedAuthorisationDbModel.reporting_org == org)
+                )
+            ).first()
+
+        if not user_role_for_org:
+            return None
+
+        return FineGrainedAuthorisationRoleAssociation(**user_role_for_org.model_dump())
+
     def is_user_a_superadmin(self, user: UUID) -> bool:
         with Session(self._engine) as session:
             user_superadmin_record = session.exec(
@@ -67,6 +81,25 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
         with Session(self._engine) as session:
             session.add(user_org_role_db)
             session.commit()
+
+    def update_user_role_for_org(self, user_reporting_org_role: FineGrainedAuthorisationRoleAssociation) -> None:
+        user_org_role_db = FineGrainedAuthorisationDbModel(**user_reporting_org_role.model_dump())
+        with Session(self._engine) as session:
+            session.merge(user_org_role_db)
+            session.commit()
+
+    def delete_user_role_for_org(self, user_reporting_org_role: FineGrainedAuthorisationRoleAssociation) -> None:
+        with Session(self._engine) as session:
+            user_role_db = session.exec(
+                select(FineGrainedAuthorisationDbModel).where(
+                    (FineGrainedAuthorisationDbModel.user == user_reporting_org_role.user)
+                    & (FineGrainedAuthorisationDbModel.reporting_org == user_reporting_org_role.reporting_org)
+                )
+            ).first()
+
+            if user_role_db:
+                session.delete(user_role_db)
+                session.commit()
 
     def delete_all_fine_grained_authorisations_for_user(self, user: UUID) -> None:
         """Deletes all fine grained role associations for a user"""
