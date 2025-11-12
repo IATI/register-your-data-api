@@ -10,8 +10,7 @@ class FineGrainedAuthorisationRole(Enum):
     PROVIDER_ADMIN = auto()
     ADMIN = auto()
     SUPER_ADMIN = auto()
-    # TODO: Reintroduce when alembic has been added
-    # CONTRIBUTOR_PENDING = auto()
+    CONTRIBUTOR_PENDING = auto()
 
 
 class FineGrainedAuthorisationRoleAssociation(pydantic.BaseModel):

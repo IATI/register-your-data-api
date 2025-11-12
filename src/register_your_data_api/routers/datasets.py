@@ -137,7 +137,7 @@ def update_dataset(
     ds_filters = Filter()
     ds_filters.equal("id", str(dataset_id))
     original_dataset_record_from_suitecrm = crm.get_records(
-        "IATI_Datasets", fields=["iati_dataset_owner_org_id"], filters=ds_filters
+        "IATI_Datasets", fields=["iati_dataset_owner_org_id", "iati_visibility"], filters=ds_filters
     )
 
     if len(original_dataset_record_from_suitecrm["data"]) == 0:
@@ -161,6 +161,25 @@ def update_dataset(
 
     # Create the record on SuiteCRM to add the dataset
     dataset_for_suitecrm = get_suitecrm_dict_from_dataset(dataset)
+
+    if (
+        not user.validator.user_can_update_reporting_org_dataset_visibility(owning_reporting_org)
+        and dataset.visibility is not None
+        and original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_visibility"] != dataset.visibility
+    ):
+        context.audit_logger.error(
+            f"Request to update dataset visibility for reporting org id: {owning_reporting_org} "  # nosec B608
+            f"by user id: {user.user_id_crm} authorised to update dataset but not dataset visibility "
+        )
+        raise HTTPException(
+            status_code=fastapi.status.HTTP_403_FORBIDDEN,
+            detail="There is a problem with your credentials.  If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry.",
+        )
+
+    if dataset.visibility is None:
+        dataset_for_suitecrm.pop("iati_visibility", None)
+
     suitecrm_dataset = crm.update_record("IATI_Datasets", str(dataset_id), dataset_for_suitecrm)
     updated_dataset = get_dataset_meta_from_suitecrm_response(suitecrm_dataset["attributes"])
 

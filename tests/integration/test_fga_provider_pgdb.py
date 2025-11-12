@@ -11,10 +11,15 @@ from register_your_data_api.auth.fga.models import (
     FineGrainedAuthorisationRole,
 )
 
+from ..helpers.setup_and_teardown import setup_db
+
 
 def test_assignment_of_permissions() -> None:
     """Simple test of FGA provider DB using SQLite in-memory DB"""
-    fga = FineGrainedAuthorisationProviderDb("sqlite://")
+
+    setup_db("sqlite:///test.db")
+
+    fga = FineGrainedAuthorisationProviderDb("sqlite:///test.db")
     fga.setup()
 
     user1, user2, user3 = uuid4(), uuid4(), uuid4()

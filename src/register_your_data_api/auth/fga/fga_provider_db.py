@@ -30,7 +30,6 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
 
     def setup(self) -> None:
         self._engine = create_engine(self._connection_str, echo=True)
-        SQLModel.metadata.create_all(self._engine)
 
     def get_user_fine_grained_permissions(self, user: UUID) -> list[FineGrainedAuthorisationRoleAssociation]:
         with Session(self._engine) as session:

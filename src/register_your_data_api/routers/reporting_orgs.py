@@ -16,6 +16,7 @@ from ..auth.fga import models as fga_models
 from ..data_handling.converters import (
     get_dataset_list_from_suitecrm_response,
     get_fga_role_as_str,
+    get_reporting_org_limited_meta_from_suitecrm_response,
     get_reporting_org_meta_from_suitecrm_response,
     get_suitecrm_dict_from_reporting_org,
 )
@@ -25,7 +26,10 @@ from ..data_handling.data_schemas import (
     DatasetListResponse,
     ReportingOrgAction,
     ReportingOrgCreateModel,
+    ReportingOrgLimitedMetadata,
+    ReportingOrgMetadata,
     ReportingOrgUpdateModel,
+    UserReportingOrgLimitedMetadataRelation,
     UserReportingOrgRelation,
     UserReportingOrgRelationListResponse,
     UserReportingOrgRelationSingleResponse,
@@ -49,7 +53,7 @@ def get_reporting_orgs(
 
     user_reporting_org_associations = user.validator.get_users_fine_grained_associations()
 
-    reporting_orgs_list = []
+    reporting_orgs_list: list[UserReportingOrgRelation | UserReportingOrgLimitedMetadataRelation] = []
 
     if len(user_reporting_org_associations) > 0:
 
@@ -71,11 +75,17 @@ def get_reporting_orgs(
                 suitecrm_collected_responses.append(*crm_reporting_org["data"])
 
         for reporting_org_from_suitecrm in suitecrm_collected_responses:
-            reporting_org_obj = get_reporting_org_meta_from_suitecrm_response(
-                reporting_org_from_suitecrm["attributes"]
-            )
-
             role_for_org = user.validator.get_user_role_for_reporting_org(reporting_org_from_suitecrm["id"])
+            reporting_org_obj: ReportingOrgMetadata | ReportingOrgLimitedMetadata
+
+            if role_for_org == fga_models.FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING:
+                reporting_org_obj = get_reporting_org_limited_meta_from_suitecrm_response(
+                    reporting_org_from_suitecrm["attributes"]
+                )
+            else:
+                reporting_org_obj = get_reporting_org_meta_from_suitecrm_response(
+                    reporting_org_from_suitecrm["attributes"]
+                )
 
             reporting_orgs_list.append(
                 UserReportingOrgRelation(
