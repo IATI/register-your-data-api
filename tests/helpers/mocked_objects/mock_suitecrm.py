@@ -5,8 +5,6 @@ from typing import Any
 
 from libsuitecrm import Filter  # type: ignore
 
-from register_your_data_api.data_handling.domain_logic import get_reporting_org_fields_to_fetch
-
 from ..utilities import get_current_timestamp_as_str
 
 
@@ -50,15 +48,9 @@ class MockSuiteCRM:
         response: dict[str, Any] = {"data": []}
 
         if module_name == "Accounts":
-            num_fields_no_meta = len(get_reporting_org_fields_to_fetch(False))
-
-            meta = "no_meta" if fields is None or len(fields) == num_fields_no_meta else "with_meta"
-
             reporting_org_id = self.get_filter_value(filters, "filter[id][eq]", "empty")
 
-            file = (
-                f"tests/artefacts/suitecrm-mocked-responses/get_records_reporting_orgs_{reporting_org_id}_{meta}.json"
-            )
+            file = f"tests/artefacts/suitecrm-mocked-responses/get_records_reporting_orgs_{reporting_org_id}.json"
 
         elif module_name == "IATI_Datasets":
 
