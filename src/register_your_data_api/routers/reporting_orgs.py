@@ -45,7 +45,6 @@ router = fastapi.APIRouter(prefix="/api/v1/reporting-orgs")
 def get_reporting_orgs(
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org"]),
-    include_meta: str = "no",
     include_actions: str = "no",
 ) -> UserReportingOrgRelationListResponse:
 
@@ -61,7 +60,7 @@ def get_reporting_orgs(
 
         crm.fetch_access_token()
 
-        fields = get_reporting_org_fields_to_fetch(include_meta == "yes")
+        fields = get_reporting_org_fields_to_fetch()
 
         # The OR search in SuiteCRM appears to be broken; you can't search for items where id = 'A' OR id = 'B' OR ...
         # It appears this doesn't work when the field being searched on is the same in each case. So we have to fetch
@@ -131,7 +130,7 @@ def get_reporting_org_detail(
 
     crm.fetch_access_token()
 
-    fields = get_reporting_org_fields_to_fetch(True)
+    fields = get_reporting_org_fields_to_fetch()
 
     crm_reporting_orgs = crm.get_records("Accounts", page_number=1, page_size=10, fields=fields, filters=filters)
 
