@@ -1,5 +1,15 @@
 import datetime
 import uuid
+from typing import Any
+
+
+def find_record_in_response(resp_as_object: dict[str, Any], record_id: str) -> dict[str, Any] | None:
+    """Finds a record with the given ID in the response object."""
+
+    for record in resp_as_object["data"]:
+        if record["id"] == record_id:
+            return record  # type: ignore
+    return None
 
 
 def is_valid_uuid(s: str) -> bool:
