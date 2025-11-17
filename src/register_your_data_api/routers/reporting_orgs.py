@@ -23,7 +23,8 @@ from ..data_handling.converters import (
 from ..data_handling.data_schemas import (
     CRMUser,
     CRMUserListResponse,
-    DatasetListResponse,
+    DatasetReadModel,
+    PaginationQueryParams,
     ReportingOrgAction,
     ReportingOrgCreateModel,
     ReportingOrgLimitedMetadata,
@@ -35,6 +36,7 @@ from ..data_handling.data_schemas import (
     UserReportingOrgRelationSingleResponse,
 )
 from ..data_handling.domain_logic import get_reporting_org_fields_to_fetch
+from ..response_schemas import PaginatedResultsPage
 from ..util import Context
 from ..utilities import check_crm_record_exists, perform_undo_actions
 
@@ -396,7 +398,8 @@ def get_reporting_org_datasets(
     org_id: uuid.UUID,
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:dataset"]),
-) -> DatasetListResponse:
+    paging: PaginationQueryParams = fastapi.Depends(),
+) -> PaginatedResultsPage[DatasetReadModel]:
 
     context: Context = request.app.state.context
 
@@ -425,11 +428,19 @@ def get_reporting_org_datasets(
     # 2. Fetch the datasets
     filters = Filter()
     filters.equal("iati_dataset_owner_org_id", str(org_id))
-    datasets_from_suitecrm = crm.get_records("IATI_Datasets", filters=filters)
+    datasets_from_suitecrm = crm.get_records(
+        "IATI_Datasets", filters=filters, page_number=paging.page, page_size=paging.page_size
+    )
+
+    # 3. SuiteCRM doesn't return the total_records, so we set page size = 1 and make a request
+    total_records_resp = crm.get_records("IATI_Datasets", filters=filters, fields=["id"], page_number=1, page_size=1)
+    total_records = total_records_resp.get("meta", {}).get("total-pages", 1)
 
     datasets = get_dataset_list_from_suitecrm_response(datasets_from_suitecrm)
 
-    return DatasetListResponse(data=datasets, error=None, status="success")
+    total_pages = datasets_from_suitecrm.get("meta", {}).get("total-pages", 1)
+
+    return PaginatedResultsPage.create(datasets, paging.page, paging.page_size, total_pages, total_records, request)
 
 
 def get_reporting_org_actions(crm: SuiteCRM, org_id: str) -> list[ReportingOrgAction]:

@@ -3,6 +3,11 @@ from typing import Literal
 import pydantic
 
 
+class BaseResponse(pydantic.BaseModel):
+    error: str | None
+    status: str
+
+
 class OrganisationId(pydantic.BaseModel):
     oid: str
 
@@ -12,6 +17,26 @@ class CRMUser(pydantic.BaseModel):
     name: str
     email: str
     role: str
+
+
+class PaginationLinks(pydantic.BaseModel):
+    first: str | None
+    last: str | None
+    next: str | None
+    prev: str | None
+
+
+class PaginationInfo(pydantic.BaseModel):
+    page: int
+    page_size: int
+    total_pages: int
+    total_records: int
+    links: PaginationLinks
+
+
+class PaginationQueryParams(pydantic.BaseModel):
+    page: int = pydantic.Field(1, ge=1)
+    page_size: int = pydantic.Field(100, ge=1, le=500)
 
 
 class UserRoleUpdateModel(pydantic.BaseModel):
