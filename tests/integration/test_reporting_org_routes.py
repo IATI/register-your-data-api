@@ -159,7 +159,7 @@ def test_reporting_org_detail_handles_non_uuid() -> None:
 
         resp_as_object = json.loads(response.content)
 
-        assert resp_as_object["error"]["error_msg"].find("validation failed") > 0
+        assert resp_as_object["error"]["error_msg"].find("Data validation error") == 0
 
 
 @pytest.mark.parametrize(
@@ -424,6 +424,45 @@ def test_reporting_org_list_datasets(
 
         if status == 200:
             assert len(resp_json["data"]) == num_datasets
+
+
+# Note: Testing of paging is extremeley limited unless we implement paging on
+# the SuiteCR mock object or switch to using a real SuiteCRM instance for
+# testing. (Using Mockoon here wouldn't provide a quick solution because while
+# their CRUD routes support paging, it does not use the JSON:API paging schema
+# that SuiteCRM uses.)
+@pytest.mark.parametrize(
+    "user,reporting_org_id,page,num_pages,links",
+    [
+        (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 1, 1, (True, True, False, False)),
+        (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 500, 1, (True, True, False, True)),
+        (1, "da17734d-3926-47ef-8563-8a1b0247ed11", 1, 1, (True, True, False, False)),
+    ],
+)
+def test_reporting_org_list_datasets_paging(
+    user: int, reporting_org_id: str, page: int, num_pages: int, links: tuple[bool, bool, bool, bool]
+) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+
+        response = client.get(
+            f"/api/v1/reporting-orgs/{reporting_org_id}/datasets?page={page}",
+            headers=appAndContext.get_valid_authorization_header(user),
+        )
+
+        pagination = response.json()["pagination"]
+
+        assert pagination["total_pages"] == num_pages
+        assert pagination["page"] == page
+
+        assert (pagination["links"]["first"] is not None) == links[0]
+        assert (pagination["links"]["last"] is not None) == links[1]
+        assert (pagination["links"]["next"] is not None) == links[2]
+        assert (pagination["links"]["prev"] is not None) == links[3]
 
 
 @pytest.mark.parametrize(
