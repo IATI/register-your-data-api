@@ -23,6 +23,9 @@ class MockSuiteCRM:
     def fetch_access_token(self) -> None:
         pass
 
+    def logout(self) -> None:
+        pass
+
     def set_response_file(self, response_file: str) -> None:
         self._response_file = response_file
 
