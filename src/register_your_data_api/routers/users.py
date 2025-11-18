@@ -13,11 +13,18 @@ from libsuitecrm import SuiteCRM  # type: ignore
 from ..auth import authz
 from ..auth.fga import models as fga_models
 from ..auth.models import UserAndCredentials
+from ..data_handling.converters import get_fga_role_from_str
 from ..data_handling.data_schemas import (
     OrganisationId,
+    UserRoleUpdateModel,
 )
 from ..util import Context
-from ..utilities import check_crm_record_exists, perform_undo_actions
+from ..utilities import (
+    assert_precondition_met,
+    check_crm_record_exists,
+    find_item_in_suitecrm_response,
+    perform_undo_actions,
+)
 
 router = fastapi.APIRouter(prefix="/api/v1/users")
 
@@ -75,12 +82,10 @@ def add_user_to_reporting_org(
         undo_actions.append((undo_msg, undo_func))
 
         # 2. Create a fine-grained authorisation for this user to be CONTRIBUTOR of new reporting_org
-        # TODO: Change CONTRIBUTOR to CONTRIBUTOR_PENDING when that role is available
-        #       which will be after alembic has been added to facilitate changes to to FGA models
         user_reporting_org_role = fga_models.FineGrainedAuthorisationRoleAssociation(
             user=uuid.UUID(user.user_id_crm),
             reporting_org=uuid.UUID(payload.oid),
-            role=fga_models.FineGrainedAuthorisationRole.CONTRIBUTOR,
+            role=fga_models.FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING,
         )
         context.fine_grained_auth_provider.create_user_fine_grained_authorisation(user_reporting_org_role)
 
@@ -99,23 +104,134 @@ def add_user_to_reporting_org(
 def update_user_role_in_reporting_org(
     user_id: uuid.UUID,
     org_id: uuid.UUID,
+    new_role: UserRoleUpdateModel,
     request: starlette.requests.Request,
     user: UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:user:update"]),
 ) -> JSONResponse:
+    """Updates a user's role within a reporting organization"""
 
-    # check token has required scopes
-    # check roles
-    # get user ID from the access token (the requester, "sub")
-    # make sure user {user_id} exists in CRM and identity service
-    # make sure reporting org exists
-    # make sure "sub" has the permissions to set user authz for this reporting org
-    # make sure user {user_id} and reporting org are related in CRM
-    # make sure user {user_id} has an FGA token in the identity service
-    # update token in the identity service
-    raise fastapi.HTTPException(
-        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Not yet implemented",
+    context: Context = request.app.state.context
+
+    # 1. Check if the requesting user has permission to update roles for this org
+    assert_precondition_met(
+        context,
+        condition_func=lambda: user.validator.user_can_modify_user_roles_for_reporting_org(org_id),
+        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+        public_msg=(
+            "There is a problem with your credentials. If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry."
+        ),
+        audit_log_msg=(
+            f"Request to change user id: {user_id}'s role in organisation with id: {org_id} "
+            f"by unauthorised user with id: {user.user_id_crm}"
+        ),
     )
+
+    # Get SuiteCRM client and validate entities exist
+    crm: SuiteCRM = context.get_suitecrm_client()
+
+    crm.fetch_access_token()
+
+    # 2. Check that the target user exists in CRM
+    assert_precondition_met(
+        context,
+        condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
+        public_msg=f"There is no user with ID {str(user_id)} in the Registry.",
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        app_log_msg=(
+            f"User with id: {user.user_id_crm} attempted to change user id: {user_id}'s role "
+            f"in organisation with id: {org_id} but user with id: {user_id} does not exist in CRM."
+        ),
+    )
+
+    # 3. Check that the target user exists in the identity service
+    # TODO: Implement
+
+    # 4. Check that the reporting org exists in CRM
+    assert_precondition_met(
+        context,
+        condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
+        public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        app_log_msg=(
+            f"User with id: {user.user_id_crm} attempted to change user id: {user_id}'s role "
+            f"in organisation with id: {org_id} but organisation with id {org_id} does not exist in CRM."
+        ),
+    )
+
+    # 5. Check that the user to be modified is not a superadmin - this is important to do since, if the following
+    # code does not find a relationship between the target user and the reporting org in the CRM, or a role
+    # in the FGA database, it will try to create them, but this must not be allowed for superadmins
+    assert_precondition_met(
+        context,
+        condition_func=lambda: not context.fine_grained_auth_provider.is_user_a_superadmin(user_id),
+        public_msg=f"User id: {user_id} cannot be given a role in no organisation with ID {str(org_id)}.",
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        app_log_msg=(
+            f"User with id: {user.user_id_crm} attempted to change user id: {user_id}'s role "
+            f"in organisation with id: {org_id} but user with id: {user_id} is a superadmin."
+        ),
+    )
+
+    # 6. Check that the target user and reporting org are related in CRM
+    users_for_org_from_suitecrm = crm.get_relationship("Accounts", str(org_id), "Contacts")
+
+    user_related_to_org_in_crm = find_item_in_suitecrm_response(users_for_org_from_suitecrm, str(user_id))
+
+    if user_related_to_org_in_crm is None:
+        context.app_logger.error(
+            f"Unexpected error: user with id: {user.user_id_crm} attempted to change user id: {user_id}'s role in "
+            f"organisation with id: {org_id} but the user is not associated with the organisation in the CRM. "
+            "Creating relationship in the CRM."
+        )
+        try:
+            crm.create_relationship("Accounts", str(org_id), "contacts", "Contacts", str(user_id))
+        except Exception as e:
+            context.app_logger.exception(
+                "Exception encountered when attempting to create the relationship in the CRM between "
+                f"user id: {user_id} and organisation id: {org_id} failed with error: {str(e)}"
+            )
+            raise HTTPException(
+                status_code=fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="There was a problem processing your request. Please contact support.",
+            )
+
+    # 7. Check whether there is an existing FGA entry for this user and reporting org
+    user_role_for_org = context.fine_grained_auth_provider.get_user_role_for_org(user_id, org_id)
+
+    if user_role_for_org is None:
+        context.app_logger.error(
+            f"Unexpected error: user with id: {user.user_id_crm} attempted to change user id: {user_id}'s role in "
+            f"organisation with id: {org_id} but the user has no entry in the FGA DB for this organisation. "
+            "Creating new entry in the FGA database."
+        )
+
+        user_role_for_org = fga_models.FineGrainedAuthorisationRoleAssociation(
+            user=user_id,
+            reporting_org=org_id,
+            role=get_fga_role_from_str(new_role.role),
+        )
+
+        context.fine_grained_auth_provider.create_user_fine_grained_authorisation(user_role_for_org)
+
+        return JSONResponse({"data": None, "error": None, "status": "success"}, 200)
+
+    # Don't update if the role is the same
+    if str(user_role_for_org.role.name) == new_role.role.upper():
+        return JSONResponse({"data": None, "error": None, "status": "success"}, 200)
+
+    # 8. Update the user's role in the FGA database
+    # This is safe as new_role has been validated by Pydantic
+    user_role_for_org.role = get_fga_role_from_str(new_role.role)
+
+    context.fine_grained_auth_provider.update_user_role_for_org(user_role_for_org)
+
+    context.audit_logger.info(
+        f"Request to change user id: {user_id}'s role for organisation with id: {org_id} "
+        f"to '{new_role.role}' by authorised user with id: {user.user_id_crm} succeeded."
+    )
+
+    return JSONResponse({"data": None, "error": None, "status": "success"}, 200)
 
 
 @router.delete("/{user_id}/reporting-org/{org_id}")
@@ -125,17 +241,87 @@ def remove_user_from_reporting_org(
     request: starlette.requests.Request,
     user: UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:user:update"]),
 ) -> JSONResponse:
-    # check token has required scopes
-    # check roles
-    # get user ID from the access token (the requester, "sub")
-    # make sure user {user_id} exists in CRM and identity service
-    # make sure reporting org exists
-    # make sure "sub" has the permissions to set user authz for this reporting org
-    # make sure user {user_id} and reporting org are related in CRM
-    # make sure user {user_id} has an FGA token in the identity service
-    # update token in the identity service
-    # remove relationship between user and reporting org in the CRM
-    raise fastapi.HTTPException(
-        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Not yet implemented",
+    """Removes a user's role in a reporting organization"""
+
+    context: Context = request.app.state.context
+
+    # 1. Check if the requesting user has permission to update roles for this org
+    assert_precondition_met(
+        context,
+        condition_func=lambda: user.validator.user_can_modify_user_roles_for_reporting_org(org_id),
+        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+        public_msg=(
+            "There is a problem with your credentials. If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry."
+        ),
+        audit_log_msg=(
+            f"Request to remove user id: {user_id}'s role in organisation with id: {org_id} "
+            f"by unauthorised user with id: {user.user_id_crm}"
+        ),
     )
+
+    # Get SuiteCRM client and validate entities exist
+    crm: SuiteCRM = context.get_suitecrm_client()
+
+    crm.fetch_access_token()
+
+    # 2. Check that the target user exists in CRM
+    assert_precondition_met(
+        context,
+        condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
+        public_msg=f"There is no user with ID {str(user_id)} in the Registry.",
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        app_log_msg=(
+            f"User with id: {user.user_id_crm} attempted to remove user id: {user_id}'s role "
+            f"in organisation with id: {org_id} but user with id: {user_id} does not exist in CRM."
+        ),
+    )
+
+    # 3. Check that the reporting org exists in CRM
+    assert_precondition_met(
+        context,
+        condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
+        public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        app_log_msg=(
+            f"User with id: {user.user_id_crm} attempted to change user id: {user_id}'s role "
+            f"in organisation with id: {org_id} but organisation with id {org_id} does not exist in CRM."
+        ),
+    )
+
+    user_role_for_org = context.fine_grained_auth_provider.get_user_role_for_org(user_id, org_id)
+
+    assert_precondition_met(
+        context,
+        condition_func=lambda: user_role_for_org is not None,
+        public_msg=f"User id: {user_id} has no role in organisation with id: {str(org_id)} in the Registry.",
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        audit_log_msg=(
+            f"Unexpected error: user with id: {user.user_id_crm} attempted to remove user id: {user_id}'s role in "
+            f"organisation with id: {org_id} but the user has no entry in the FGA DB for this organisation. "
+        ),
+    )
+
+    # 4. Delete the user's role in the FGA database
+    try:
+        context.fine_grained_auth_provider.delete_user_role_for_org(user_role_for_org)  # type: ignore
+
+        context.audit_logger.info(
+            f"Request to remove user id: {user_id}'s role for organisation with id: {org_id} "
+            f"by authorised user with id: {user.user_id_crm} succeeded."
+        )
+    except Exception:
+        context.app_logger.exception(
+            f"Request to remove user id: {user_id}'s role for organisation with id: {org_id} "
+            f"by authorised user with id: {user.user_id_crm} failed."
+        )
+
+        raise HTTPException(
+            fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"There was a problem removing the user's role for organisation with id: {org_id}. "
+                "Please contact support.",
+            ),
+        )
+
+    return JSONResponse({"data": None, "error": None, "status": "success"}, 200)

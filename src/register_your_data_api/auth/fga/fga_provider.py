@@ -21,6 +21,11 @@ class FineGrainedAuthorisationProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_user_role_for_org(self, user: UUID, org: UUID) -> FineGrainedAuthorisationRoleAssociation | None:
+        """Returns a list of all the user's fine grained access roles for a specific organisation"""
+        raise NotImplementedError
+
+    @abstractmethod
     def is_user_a_superadmin(self, user: UUID) -> bool:
         """Returns True if the user is a superadmin, else False"""
         raise NotImplementedError
@@ -30,6 +35,16 @@ class FineGrainedAuthorisationProvider(ABC):
         self, user_reporting_org_role_association: FineGrainedAuthorisationRoleAssociation
     ) -> None:
         """Creates a new user <-> reporting org fine grained role association"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_user_role_for_org(self, user_reporting_org_role: FineGrainedAuthorisationRoleAssociation) -> None:
+        """Updates an existing user <-> reporting org fine grained role association"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_user_role_for_org(self, user_reporting_org_role: FineGrainedAuthorisationRoleAssociation) -> None:
+        """Deletes the user's role for the reporting org"""
         raise NotImplementedError
 
     @abstractmethod

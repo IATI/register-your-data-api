@@ -166,10 +166,12 @@ class MockedAppAndContext:
         self._mocked_user_ids.append(UUID("a1b191ee-4c12-461c-cbe1-68de8173f628"))  # Person Three
         self._mocked_user_ids.append(UUID("7625122c-f752-40dc-a577-5cb49e13de2a"))  # Person Four
         self._mocked_user_ids.append(UUID("b46b88bd-05e6-4cb8-8b6a-a2c47fcd666d"))  # Person Five
+        self._mocked_user_ids.append(UUID("8c51d9bf-46c2-4d1d-869b-d9e2dd63ff48"))  # Person Six
 
         self._mocked_reporting_org_ids.append(UUID("552376ae-2aa7-98ab-d800-68daa9bfeb4a"))  # aid-agency-01
         self._mocked_reporting_org_ids.append(UUID("ab851a83-a384-3eb9-caf0-68db8125b067"))  # agency-02
         self._mocked_reporting_org_ids.append(UUID("da17734d-3926-47ef-8563-8a1b0247ed11"))  # gov agency 03
+        self._mocked_reporting_org_ids.append(UUID("0a3a9507-d674-480e-b625-7d190f4f3319"))  # Agency Not in Mock CRM
 
         self._mocked_context = make_test_context(self)  # type: ignore
 
@@ -228,8 +230,9 @@ class MockedAppAndContext:
             subject=str(self._mocked_user_ids[test_user_num]),
             audience="iati_register_your_data",
             scopes=(
-                "ryd ryd:reporting_org ryd:reporting_org:create ryd:reporting_org:update "
-                "ryd:reporting_org:delete ryd:reporting_org:user ryd:reporting_org:user:update ryd:dataset"
+                "ryd ryd:reporting_org ryd:reporting_org:create ryd:reporting_org:update ryd:reporting_org:delete "
+                "ryd:reporting_org:user ryd:reporting_org:user:update ryd:dataset "
+                "ryd:dataset:update ryd:dataset:delete"
             ),
         )
         token = jwt.encode(claims, self._JWKS_KEYS["key1"][0], algorithm="RS256", headers={"kid": "key1"})
@@ -295,6 +298,7 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
         # Aid Agency 01 / index 0 = UUID("552376ae-2aa7-98ab-d800-68daa9bfeb4a")
         # Agency 02     / index 1 = UUID("ab851a83-a384-3eb9-caf0-68db8125b067")
         # Gov Agency 03 / index 2 = UUID("da17734d-3926-47ef-8563-8a1b0247ed11")
+        # Agency Not in Mock CRM / index 3 = UUID("0a3a9507-d674-480e-b625-7d190f4f3319")
 
         # Add user 1 roles.
         session.add(
@@ -327,6 +331,13 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
                 role=FineGrainedAuthorisationRole.ADMIN,
             )
         )
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=app_and_context._mocked_user_ids[1],
+                reporting_org=app_and_context._mocked_reporting_org_ids[3],
+                role=FineGrainedAuthorisationRole.ADMIN,
+            )
+        )
 
         # Add user 3 roles.
         session.add(SuperAdminUserDbModel(user=app_and_context._mocked_user_ids[2], is_superadmin=True))
@@ -343,6 +354,13 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
             FineGrainedAuthorisationDbModel(
                 user=app_and_context._mocked_user_ids[3],
                 reporting_org=app_and_context._mocked_reporting_org_ids[1],
+                role=FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING,
+            )
+        )
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=app_and_context._mocked_user_ids[3],
+                reporting_org=app_and_context._mocked_reporting_org_ids[3],
                 role=FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING,
             )
         )

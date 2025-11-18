@@ -1,9 +1,66 @@
 import uuid
 from typing import Any, Callable
 
+import fastapi
 from libsuitecrm import Filter, SuiteCRM  # type: ignore
 
 from .util import Context
+
+
+def assert_precondition_met(
+    context: Context,
+    condition_func: Callable[[], bool],
+    public_msg: str,
+    status_code: int,
+    app_log_msg: str | None = None,
+    audit_log_msg: str | None = None,
+) -> None:
+    """Asserts that a precondition is met, else raises an exception
+
+    Parameters
+    ----------
+    condition_func : Callable[[], bool]
+        A function that returns True if the precondition is met
+    log_msg : str
+        The message to include in the logs if the precondition is not met
+    public_msg : str
+        The message to include in the exception if the precondition is not met
+
+    Raises
+    ------
+    Exception
+        If the precondition is not met
+    """
+    if not condition_func():
+        if app_log_msg is not None:
+            context.app_logger.error(app_log_msg)
+        if audit_log_msg is not None:
+            context.audit_logger.error(audit_log_msg)
+        raise fastapi.HTTPException(status_code=status_code, detail=public_msg)
+
+
+def find_item_in_suitecrm_response(
+    r: dict[str, Any] | None, id: str | None, id_field: str = "id"
+) -> dict[str, Any] | None:
+    """Finds an item with the specified id in a SuiteCRM response
+
+    Parameters
+    ----------
+    r : dict[str, Any]
+        The SuiteCRM response dictionary
+    id : str
+        The id to search for
+    id_field : str, optional
+        The field name to match the id against, by default "id"
+
+    Returns
+    -------
+    dict[str, Any] | None
+        The found item dictionary, or None if not found
+    """
+    if r is None:
+        return None
+    return next((item for item in r.get("data", []) if item.get(id_field) == id), None)
 
 
 def check_crm_record_exists(crm: SuiteCRM, module: str, id: str) -> bool:

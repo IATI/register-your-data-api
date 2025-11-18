@@ -147,7 +147,20 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
 
         return False
 
-    def user_can_modify_users_owned_by_reporting_org(self, reporting_org_id: UUID) -> bool:
+    def user_can_delete_reporting_org_datasets(self, reporting_org_id: UUID) -> bool:
+
+        if self.is_superadmin:
+            return True
+
+        role_for_org = self.get_user_role_for_reporting_org(reporting_org_id)
+
+        if role_for_org is not None:
+            if "delete-dataset" in self.get_permissions_for_role(role_for_org):
+                return True
+
+        return False
+
+    def user_can_modify_user_roles_for_reporting_org(self, reporting_org_id: UUID) -> bool:
         if self.is_superadmin:
             return True
 
