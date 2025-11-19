@@ -142,7 +142,7 @@ class ReportingOrgMetadata(pydantic.BaseModel):
     website: str | None = pydantic.Field(None)
 
 
-class ReportingOrgLimitedMetadata(pydantic.BaseModel):
+class DiscoverableReportingOrgMetadata(pydantic.BaseModel):
 
     hq_country: str | None = pydantic.Field(None)
     human_readable_name: str
@@ -163,14 +163,14 @@ class ReportingOrgAction(pydantic.BaseModel):
 
 class UserReportingOrgRelation(pydantic.BaseModel):
     id: str
-    metadata: ReportingOrgMetadata | ReportingOrgLimitedMetadata
+    metadata: ReportingOrgMetadata | DiscoverableReportingOrgMetadata
     reporting_org_actions: list  # type: ignore
     user_role: str
 
 
 class UserReportingOrgLimitedMetadataRelation(pydantic.BaseModel):
     id: str
-    metadata: ReportingOrgLimitedMetadata
+    metadata: DiscoverableReportingOrgMetadata
     reporting_org_actions: list  # type: ignore
     user_role: str
 

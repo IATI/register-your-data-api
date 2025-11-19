@@ -3,7 +3,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from register_your_data_api.data_handling.data_schemas import ReportingOrgLimitedMetadata, ReportingOrgMetadata
+from register_your_data_api.data_handling.data_schemas import DiscoverableReportingOrgMetadata, ReportingOrgMetadata
 
 from ..helpers.mocking import MockedAppAndContext
 from ..helpers.utilities import find_record_in_response, is_valid_uuid
@@ -128,7 +128,7 @@ def test_reporting_orgs_fetch_correct_org_info_for_contributor_pending() -> None
         assert org_user_is_pending_for is not None
         assert "metadata" in org_user_is_pending_for
 
-        assert len(org_user_is_pending_for["metadata"]) == len(ReportingOrgLimitedMetadata.model_fields.keys())
+        assert len(org_user_is_pending_for["metadata"]) == len(DiscoverableReportingOrgMetadata.model_fields.keys())
 
         assert org_user_is_pending_for["metadata"]["short_name"] == reporting_org_details["short_name"]
         assert (
