@@ -14,9 +14,10 @@ from ..auth import authz
 from ..auth import models as auth_models
 from ..auth.fga import models as fga_models
 from ..data_handling.converters import (
+    SUITECRM_REPORTING_ORG_FIELDS,
     get_dataset_list_from_suitecrm_response,
+    get_discoverable_reporting_org_meta_from_suitecrm_response,
     get_fga_role_as_str,
-    get_reporting_org_limited_meta_from_suitecrm_response,
     get_reporting_org_meta_from_suitecrm_response,
     get_suitecrm_dict_from_reporting_org,
 )
@@ -24,10 +25,10 @@ from ..data_handling.data_schemas import (
     CRMUser,
     CRMUserListResponse,
     DatasetReadModel,
+    DiscoverableReportingOrgMetadata,
     PaginationQueryParams,
     ReportingOrgAction,
     ReportingOrgCreateModel,
-    ReportingOrgLimitedMetadata,
     ReportingOrgMetadata,
     ReportingOrgUpdateModel,
     UserReportingOrgLimitedMetadataRelation,
@@ -35,10 +36,9 @@ from ..data_handling.data_schemas import (
     UserReportingOrgRelationListResponse,
     UserReportingOrgRelationSingleResponse,
 )
-from ..data_handling.domain_logic import get_reporting_org_fields_to_fetch
 from ..response_schemas import PaginatedResultsPage
 from ..util import Context
-from ..utilities import check_crm_record_exists, perform_undo_actions
+from ..utilities import assert_precondition_met, check_crm_record_exists, perform_undo_actions
 
 router = fastapi.APIRouter(prefix="/api/v1/reporting-orgs")
 
@@ -62,7 +62,7 @@ def get_reporting_orgs(
 
         crm.fetch_access_token()
 
-        fields = get_reporting_org_fields_to_fetch()
+        fields = SUITECRM_REPORTING_ORG_FIELDS
 
         # The OR search in SuiteCRM appears to be broken; you can't search for items where id = 'A' OR id = 'B' OR ...
         # It appears this doesn't work when the field being searched on is the same in each case. So we have to fetch
@@ -77,10 +77,10 @@ def get_reporting_orgs(
 
         for reporting_org_from_suitecrm in suitecrm_collected_responses:
             role_for_org = user.validator.get_user_role_for_reporting_org(reporting_org_from_suitecrm["id"])
-            reporting_org_obj: ReportingOrgMetadata | ReportingOrgLimitedMetadata
+            reporting_org_obj: ReportingOrgMetadata | DiscoverableReportingOrgMetadata
 
             if role_for_org == fga_models.FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING:
-                reporting_org_obj = get_reporting_org_limited_meta_from_suitecrm_response(
+                reporting_org_obj = get_discoverable_reporting_org_meta_from_suitecrm_response(
                     reporting_org_from_suitecrm["attributes"]
                 )
             else:
@@ -132,7 +132,7 @@ def get_reporting_org_detail(
 
     crm.fetch_access_token()
 
-    fields = get_reporting_org_fields_to_fetch()
+    fields = SUITECRM_REPORTING_ORG_FIELDS
 
     crm_reporting_orgs = crm.get_records("Accounts", page_number=1, page_size=10, fields=fields, filters=filters)
 
@@ -298,30 +298,90 @@ def delete_reporting_org(
 
     context: Context = request.app.state.context
 
-    if not user.validator.user_can_delete_reporting_org(org_id):
-        context.audit_logger.error(
-            f"Request to update reporting org details for org id: {str(org_id)} "
+    # 1. Check that the user has permissions to delete (mark as not on RYD) the reporting org
+    assert_precondition_met(
+        context,
+        condition_func=lambda: user.validator.user_can_delete_reporting_org(org_id),
+        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+        audit_log_msg=(
+            f"Request to delete reporting org for org id: {str(org_id)} "
             f"by unauthorised user id: {user.user_id_crm}"
-        )
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_403_FORBIDDEN,
-            detail="There is a problem with your credentials.  If this persists please report "
-            "error to the provider of the tool you are using to access the IATI Registry.",
-        )
+        ),
+        public_msg=(
+            "There is a problem with your credentials. If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry."
+        ),
+    )
 
     crm: SuiteCRM = context.get_suitecrm_client()
 
     crm.fetch_access_token()
 
-    # TODO: finish implementation of delete_reporting_org
+    # 1. Query SuiteCRM to check that the reporting_org exists. We just fetch the item, because
+    # we need to update it later on, and we need to know what its current state is for undo purposes.
+    filters = Filter()
+    filters.equal("id", org_id)
+    # TODO: also fetch iati_registry_discoverable when that field is available on SuiteCRM
+    crm_reporting_org = crm.get_records(
+        "Accounts", page_number=1, page_size=1, fields=["id", "iati_registry_approved"], filters=filters
+    )
 
-    # 1. Set iati_registry_approved to False on the reporting org to disable further dataset publishing
-    # crm.update_record("Accounts", str(org_id), {"iati_registry_approved": False})
+    assert_precondition_met(
+        context,
+        condition_func=lambda: len(crm_reporting_org["data"]) == 1,
+        status_code=fastapi.status.HTTP_404_NOT_FOUND,
+        public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
+        audit_log_msg=(
+            f"Request to delete reporting org for org id: {str(org_id)} by user id: {user.user_id_crm} "
+            f"but the orgganisation does not exist in SuiteCRM."
+        ),
+    )
 
-    # 2. Delete user<->org relationships in SuiteCRM
+    error_trace_id: uuid.UUID
+    undo_actions: list[tuple[str, Callable[[], Any]]] = []
 
-    # 3. Delete user-org role associations in the FGA database
-    # context.fine_grained_auth_provider.delete_all_fine_grained_authorisations_for_user(org_id)
+    try:
+        # 2a. Set iati_registry_approved to False on the reporting org to disable
+        # further dataset publishing, and set discoverable to be False
+
+        # TODO: 2b. Set iati_registry_discoverable to False when that new field is
+        # available on SuiteCRM.
+        crm.update_record("Accounts", str(org_id), {"iati_registry_approved": False})
+
+        if crm_reporting_org["data"][0].get("attributes", {}).get("iati_registry_approved") is True:
+            # Only need to add undo action if the field was previously True
+            undo_actions.append(
+                (
+                    f"Set iati_registry_approved back to True for organisation with id: {str(org_id)}",
+                    lambda: crm.update_record("Accounts", str(org_id), {"iati_registry_approved": True}),
+                )
+            )
+
+        # 3. Delete user-org role associations in the FGA database
+        context.fine_grained_auth_provider.delete_all_fine_grained_authorisations_for_org(org_id)
+
+        # 4. Delete the datasets
+        filters = Filter()
+        filters.equal("iati_dataset_owner_org_id", str(org_id))
+        datasets_from_suitecrm = crm.get_records("IATI_Datasets", filters=filters, fields=["id"], page_size=1500)
+        for dataset in datasets_from_suitecrm.get("data", []):
+            dataset_id = dataset["id"]
+            crm.delete_record("IATI_Datasets", dataset_id)
+
+        context.audit_logger.info(
+            f"User {user.user_id_crm} deleted reporting org {org_id} with its "
+            f"{len(datasets_from_suitecrm.get('data', []))} associated datasets"
+        )
+
+    except Exception:
+        error_trace_id = perform_undo_actions(context, undo_actions, "delete_reporting_org")
+
+        raise HTTPException(
+            fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"There was a problem deleting the reporting org. Error id: {error_trace_id}",
+        )
+
+    crm.logout()
 
     return fastapi.responses.JSONResponse({"status": "success", "data": None, "error": None})
 
