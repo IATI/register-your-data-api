@@ -6,8 +6,8 @@ from .data_schemas import (
     DatasetMetadata,
     DatasetReadModel,
     DatasetUpdateModel,
+    DiscoverableReportingOrgMetadata,
     ReportingOrgCreateModel,
-    ReportingOrgLimitedMetadata,
     ReportingOrgMetadata,
     ReportingOrgUpdateModel,
 )
@@ -90,6 +90,14 @@ def get_dataset_meta_from_suitecrm_response(suitecrm_response: dict[str, Any]) -
     return DatasetMetadata(**dict_with_ryd_api_field_names)
 
 
+def get_discoverable_reporting_org_suitecrm_fields() -> list[str]:
+    """Gets the list of SuiteCRM fields needed to fetch discoverable reporting orgs"""
+
+    discoverable_org_fields = list(DiscoverableReportingOrgMetadata.model_fields.keys())
+
+    return [RYD_API_TO_SUITECRM_REPORTING_ORG_FIELD_MAP[k] for k in discoverable_org_fields]
+
+
 def get_reporting_org_meta_from_suitecrm_response(suitecrm_response: dict[str, Any]) -> ReportingOrgMetadata:
     """Gets a native ReportingOrgMetadata object from a SuiteCRM response"""
 
@@ -103,12 +111,12 @@ def get_reporting_org_meta_from_suitecrm_response(suitecrm_response: dict[str, A
     return ReportingOrgMetadata(**dict_with_ryd_api_field_names)
 
 
-def get_reporting_org_limited_meta_from_suitecrm_response(
+def get_discoverable_reporting_org_meta_from_suitecrm_response(
     suitecrm_response: dict[str, Any],
-) -> ReportingOrgLimitedMetadata:
-    """Gets a native ReportingOrgLimitedMetadata object from a SuiteCRM response"""
+) -> DiscoverableReportingOrgMetadata:
+    """Gets a native DiscoverableReportingOrgMetadata object from a SuiteCRM response"""
 
-    limited_fields = list(ReportingOrgLimitedMetadata.model_fields.keys())
+    limited_fields = list(DiscoverableReportingOrgMetadata.model_fields.keys())
 
     cleaned_response = get_dict_with_specified_fields(suitecrm_response, SUITECRM_REPORTING_ORG_FIELDS)
 
@@ -118,7 +126,7 @@ def get_reporting_org_limited_meta_from_suitecrm_response(
         if SUITECRM_TO_RYD_API_REPORTING_ORG_FIELD_MAP[k] in limited_fields
     }
 
-    return ReportingOrgLimitedMetadata(**dict_with_ryd_api_field_names)
+    return DiscoverableReportingOrgMetadata(**dict_with_ryd_api_field_names)
 
 
 def get_suitecrm_dict_from_dataset(dataset: DatasetCreateModel | DatasetUpdateModel) -> dict[str, Any]:

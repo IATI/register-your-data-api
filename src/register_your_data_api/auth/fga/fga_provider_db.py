@@ -1,6 +1,6 @@
 from uuid import UUID, uuid4
 
-from sqlalchemy import Engine
+from sqlalchemy import Engine, delete
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 from .fga_provider import FineGrainedAuthorisationProvider
@@ -104,4 +104,17 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
     def delete_all_fine_grained_authorisations_for_user(self, user: UUID) -> None:
         """Deletes all fine grained role associations for a user"""
         # TODO: Implement this method
+        return None
+
+    def delete_all_fine_grained_authorisations_for_org(self, org: UUID) -> None:
+        """Deletes all fine grained role associations for an organisation"""
+
+        delete_cmd = delete(FineGrainedAuthorisationDbModel).where(
+            FineGrainedAuthorisationDbModel.reporting_org == org  # type: ignore
+        )
+
+        with Session(self._engine) as session:
+            session.exec(delete_cmd)
+            session.commit()
+
         return None

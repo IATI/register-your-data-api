@@ -51,3 +51,8 @@ class FineGrainedAuthorisationProvider(ABC):
     def delete_all_fine_grained_authorisations_for_user(self, user: UUID) -> None:
         """Deletes all fine grained role associations for a user"""
         raise NotImplementedError
+
+    @abstractmethod
+    def delete_all_fine_grained_authorisations_for_org(self, org: UUID) -> None:
+        """Deletes all fine grained role associations for an organisation"""
+        raise NotImplementedError

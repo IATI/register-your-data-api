@@ -1,17 +1,16 @@
 import json
-from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from register_your_data_api.data_handling.data_schemas import ReportingOrgLimitedMetadata, ReportingOrgMetadata
+from register_your_data_api.data_handling.data_schemas import DiscoverableReportingOrgMetadata, ReportingOrgMetadata
 
 from ..helpers.mocking import MockedAppAndContext
-from ..helpers.utilities import is_valid_uuid
+from ..helpers.utilities import find_record_in_response, is_valid_uuid
 
 
 @pytest.mark.parametrize(
-    "user,reporting_org_details,include_meta",
+    "user,reporting_org_details",
     [
         (
             0,
@@ -19,7 +18,6 @@ from ..helpers.utilities import is_valid_uuid
                 ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01"),
                 ("ab851a83-a384-3eb9-caf0-68db8125b067", "agency-02"),
             ],
-            False,
         ),
         (
             1,
@@ -27,26 +25,14 @@ from ..helpers.utilities import is_valid_uuid
                 ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01"),
                 ("da17734d-3926-47ef-8563-8a1b0247ed11", "gov-agency-03"),
             ],
-            False,
-        ),
-        (
-            1,
-            [
-                ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01"),
-                ("da17734d-3926-47ef-8563-8a1b0247ed11", "gov-agency-03"),
-            ],
-            True,
         ),
         (
             2,
             [],
-            True,
         ),
     ],
 )
-def test_reporting_orgs_fetch_user_to_org_associations(
-    user: int, reporting_org_details: list[tuple[str, str]], include_meta: bool
-) -> None:
+def test_reporting_orgs_fetch_correct_orgs_for_user(user: int, reporting_org_details: list[tuple[str, str]]) -> None:
 
     appAndContext = MockedAppAndContext()
 
@@ -56,7 +42,7 @@ def test_reporting_orgs_fetch_user_to_org_associations(
         response = client.get(
             "/api/v1/reporting-orgs",
             headers=appAndContext.get_valid_authorization_header(user),
-            params={"include_meta": "yes" if include_meta else "no"},
+            params={},
         )
 
         assert response.status_code == 200
@@ -66,34 +52,17 @@ def test_reporting_orgs_fetch_user_to_org_associations(
         assert len(resp_as_object["data"]) == len(reporting_org_details)
 
         for reporting_org in reporting_org_details:
-            reporting_org_response_object = find_reporting_org_in_response(resp_as_object, reporting_org[0])
+            reporting_org_response_object = find_record_in_response(resp_as_object, reporting_org[0])
 
             assert reporting_org_response_object is not None
             assert reporting_org_response_object["metadata"]["short_name"] == reporting_org[1]
 
-            if include_meta:
-                assert reporting_org_response_object["metadata"]["data_portal_url"] is not None
-                assert reporting_org_response_object["metadata"]["default_licence_id"] is not None
-                assert reporting_org_response_object["metadata"]["description"] is not None
-                assert reporting_org_response_object["metadata"]["exclusions_policy_url"] is not None
-                assert reporting_org_response_object["metadata"]["hq_country"] is not None
-                assert reporting_org_response_object["metadata"]["organisation_type"] is not None
-                assert reporting_org_response_object["metadata"]["region"] is not None
-                assert reporting_org_response_object["metadata"]["website"] is not None
 
-
-def find_reporting_org_in_response(resp_as_object: dict[str, Any], reporting_org_id: str) -> dict[str, Any] | None:
-    for reporting_org in resp_as_object["data"]:
-        if reporting_org["id"] == reporting_org_id:
-            return reporting_org  # type: ignore
-    return None
-
-
-def test_reporting_orgs_fetch_user_to_org_associations_gets_correct_fields() -> None:
+def test_reporting_orgs_fetch_correct_org_info_for_admin_and_editor() -> None:
 
     reporting_org_details = [
-        ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01", True),
-        ("ab851a83-a384-3eb9-caf0-68db8125b067", "agency-02", False),
+        ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01", "Aid Agency 01", "GB", "Test agency 01"),
+        ("ab851a83-a384-3eb9-caf0-68db8125b067", "agency-02", "Agency 02", "LV", ""),
     ]
 
     appAndContext = MockedAppAndContext()
@@ -103,8 +72,8 @@ def test_reporting_orgs_fetch_user_to_org_associations_gets_correct_fields() -> 
     with TestClient(fastAPIapp) as client:
         response = client.get(
             "/api/v1/reporting-orgs",
-            headers=appAndContext.get_valid_authorization_header(3),
-            params={"include_meta": "yes"},
+            headers=appAndContext.get_valid_authorization_header(0),
+            params={},
         )
 
         assert response.status_code == 200
@@ -114,28 +83,64 @@ def test_reporting_orgs_fetch_user_to_org_associations_gets_correct_fields() -> 
         assert len(resp_as_object["data"]) == len(reporting_org_details)
 
         for reporting_org in reporting_org_details:
-            reporting_org_response_object = find_reporting_org_in_response(resp_as_object, reporting_org[0])
+            reporting_org_response_object = find_record_in_response(resp_as_object, reporting_org[0])
 
             assert reporting_org_response_object is not None
             assert "metadata" in reporting_org_response_object
 
-            # it should have full info
-            if reporting_org[2]:
-                assert len(reporting_org_response_object["metadata"]) == len(ReportingOrgMetadata.model_fields.keys())
+            assert len(reporting_org_response_object["metadata"]) == len(ReportingOrgMetadata.model_fields.keys())
 
-                assert reporting_org_response_object["metadata"]["data_portal_url"] is not None
-                assert reporting_org_response_object["metadata"]["default_licence_id"] is not None
-                assert reporting_org_response_object["metadata"]["description"] is not None
-                assert reporting_org_response_object["metadata"]["exclusions_policy_url"] is not None
-                assert reporting_org_response_object["metadata"]["hq_country"] is not None
-                assert reporting_org_response_object["metadata"]["organisation_type"] is not None
-                assert reporting_org_response_object["metadata"]["region"] is not None
-                assert reporting_org_response_object["metadata"]["website"] is not None
+            assert reporting_org_response_object["metadata"]["short_name"] == reporting_org[1]
+            assert reporting_org_response_object["metadata"]["human_readable_name"] == reporting_org[2]
+            assert reporting_org_response_object["metadata"]["hq_country"] == reporting_org[3]
+            assert reporting_org_response_object["metadata"]["description"] == reporting_org[4]
 
-            else:
-                assert len(reporting_org_response_object["metadata"]) == len(
-                    ReportingOrgLimitedMetadata.model_fields.keys()
-                )
+
+def test_reporting_orgs_fetch_correct_org_info_for_contributor_pending() -> None:
+
+    reporting_org_details = {
+        "id": "ab851a83-a384-3eb9-caf0-68db8125b067",
+        "short_name": "agency-02",
+        "human_readable_name": "Agency 02",
+        "hq_country": "LV",
+        "region": "89",
+        "website": "http://",
+        "organisation_identifier": "XI-012345-6789",
+    }
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        response = client.get(
+            "/api/v1/reporting-orgs",
+            headers=appAndContext.get_valid_authorization_header(3),
+            params={},
+        )
+
+        assert response.status_code == 200
+
+        resp_as_object = json.loads(response.content)
+
+        org_user_is_pending_for = find_record_in_response(resp_as_object, reporting_org_details["id"])
+
+        assert org_user_is_pending_for is not None
+        assert "metadata" in org_user_is_pending_for
+
+        assert len(org_user_is_pending_for["metadata"]) == len(DiscoverableReportingOrgMetadata.model_fields.keys())
+
+        assert org_user_is_pending_for["metadata"]["short_name"] == reporting_org_details["short_name"]
+        assert (
+            org_user_is_pending_for["metadata"]["human_readable_name"] == reporting_org_details["human_readable_name"]
+        )
+        assert org_user_is_pending_for["metadata"]["hq_country"] == reporting_org_details["hq_country"]
+        assert org_user_is_pending_for["metadata"]["region"] == reporting_org_details["region"]
+        assert org_user_is_pending_for["metadata"]["website"] == reporting_org_details["website"]
+        assert (
+            org_user_is_pending_for["metadata"]["organisation_identifier"]
+            == reporting_org_details["organisation_identifier"]
+        )
 
 
 def test_reporting_org_detail_handles_non_uuid() -> None:
@@ -154,7 +159,7 @@ def test_reporting_org_detail_handles_non_uuid() -> None:
 
         resp_as_object = json.loads(response.content)
 
-        assert resp_as_object["error"]["error_msg"].find("validation failed") > 0
+        assert resp_as_object["error"]["error_msg"].find("Data validation error") == 0
 
 
 @pytest.mark.parametrize(
@@ -187,7 +192,7 @@ def test_reporting_org_detail_check_user_access(user: int, reporting_org_id: str
 
 
 @pytest.mark.parametrize(
-    "users,reporting_org_id,reporting_org_details,include_meta",
+    "users,reporting_org_id,reporting_org_details",
     [
         (
             [0, 1, 2],
@@ -205,7 +210,6 @@ def test_reporting_org_detail_check_user_access(user: int, reporting_org_id: str
                 "short_name": "aid-agency-01",
                 "website": "http://aid-agency.org",
             },
-            False,
         ),
         (
             [0, 2],
@@ -223,12 +227,11 @@ def test_reporting_org_detail_check_user_access(user: int, reporting_org_id: str
                 "short_name": "agency-02",
                 "website": "http://",
             },
-            False,
         ),
     ],
 )
 def test_reporting_org_detail_check_values(
-    users: list[int], reporting_org_id: str, reporting_org_details: dict[str, str], include_meta: bool
+    users: list[int], reporting_org_id: str, reporting_org_details: dict[str, str]
 ) -> None:
 
     appAndContext = MockedAppAndContext()
@@ -240,7 +243,7 @@ def test_reporting_org_detail_check_values(
             response = client.get(
                 f"/api/v1/reporting-orgs/{reporting_org_id}",
                 headers=appAndContext.get_valid_authorization_header(user),
-                params={"include_meta": "yes" if include_meta else "no"},
+                params={},
             )
 
             assert response.status_code == 200
@@ -260,15 +263,14 @@ def test_reporting_org_detail_check_values(
             )
             assert reporting_org_response_object["metadata"]["short_name"] == reporting_org_details["short_name"]
 
-            if include_meta:
-                assert reporting_org_response_object["metadata"]["data_portal_url"] is not None
-                assert reporting_org_response_object["metadata"]["default_licence_id"] is not None
-                assert reporting_org_response_object["metadata"]["description"] is not None
-                assert reporting_org_response_object["metadata"]["exclusions_policy_url"] is not None
-                assert reporting_org_response_object["metadata"]["hq_country"] is not None
-                assert reporting_org_response_object["metadata"]["organisation_type"] is not None
-                assert reporting_org_response_object["metadata"]["region"] is not None
-                assert reporting_org_response_object["metadata"]["website"] is not None
+            assert reporting_org_response_object["metadata"]["data_portal_url"] is not None
+            assert reporting_org_response_object["metadata"]["default_licence_id"] is not None
+            assert reporting_org_response_object["metadata"]["description"] is not None
+            assert reporting_org_response_object["metadata"]["exclusions_policy_url"] is not None
+            assert reporting_org_response_object["metadata"]["hq_country"] is not None
+            assert reporting_org_response_object["metadata"]["organisation_type"] is not None
+            assert reporting_org_response_object["metadata"]["region"] is not None
+            assert reporting_org_response_object["metadata"]["website"] is not None
 
 
 @pytest.mark.parametrize("user", [0, 1, 2])
@@ -422,6 +424,45 @@ def test_reporting_org_list_datasets(
 
         if status == 200:
             assert len(resp_json["data"]) == num_datasets
+
+
+# Note: Testing of paging is extremeley limited unless we implement paging on
+# the SuiteCR mock object or switch to using a real SuiteCRM instance for
+# testing. (Using Mockoon here wouldn't provide a quick solution because while
+# their CRUD routes support paging, it does not use the JSON:API paging schema
+# that SuiteCRM uses.)
+@pytest.mark.parametrize(
+    "user,reporting_org_id,page,num_pages,links",
+    [
+        (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 1, 1, (True, True, False, False)),
+        (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 500, 1, (True, True, False, True)),
+        (1, "da17734d-3926-47ef-8563-8a1b0247ed11", 1, 1, (True, True, False, False)),
+    ],
+)
+def test_reporting_org_list_datasets_paging(
+    user: int, reporting_org_id: str, page: int, num_pages: int, links: tuple[bool, bool, bool, bool]
+) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+
+        response = client.get(
+            f"/api/v1/reporting-orgs/{reporting_org_id}/datasets?page={page}",
+            headers=appAndContext.get_valid_authorization_header(user),
+        )
+
+        pagination = response.json()["pagination"]
+
+        assert pagination["total_pages"] == num_pages
+        assert pagination["page"] == page
+
+        assert (pagination["links"]["first"] is not None) == links[0]
+        assert (pagination["links"]["last"] is not None) == links[1]
+        assert (pagination["links"]["next"] is not None) == links[2]
+        assert (pagination["links"]["prev"] is not None) == links[3]
 
 
 @pytest.mark.parametrize(

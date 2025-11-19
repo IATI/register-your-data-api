@@ -47,17 +47,10 @@ def add_exception_handlers(app: fastapi.FastAPI) -> None:
 
         context.app_logger.warning(f"Validation error: {exc} for request: {request.url}")
 
-        msg = "Data validation error."
-        for validation_error in exc._errors:
-            match validation_error["type"]:
-                case "literal_error":
-                    msg = f"Field '{validation_error["loc"][1]}' contains an invalid value: {validation_error["msg"]}."
-                case "string_too_short":
-                    msg = f"Field '{validation_error["loc"][1]}' cannot be null or empty."
-                case "missing":
-                    msg = f"There is a missing field. {validation_error["msg"]}: {validation_error["loc"][1]}"
-                case "uuid_parsing":
-                    msg = f"At location: {validation_error["loc"]} validation failed: {validation_error["msg"]}"
+        msg = "Data validation error: "
+
+        msg += " ".join([f"Field '{err['loc'][-1]}': {err['msg']}." for err in exc.errors()])
+
         return fastapi.responses.JSONResponse(
             {"status": "failed", "data": None, "error": {"status_code": 400, "error_msg": msg}},
             status_code=400,
