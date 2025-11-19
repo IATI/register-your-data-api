@@ -438,9 +438,7 @@ def get_reporting_org_datasets(
 
     datasets = get_dataset_list_from_suitecrm_response(datasets_from_suitecrm)
 
-    total_pages = datasets_from_suitecrm.get("meta", {}).get("total-pages", 1)
-
-    return PaginatedResultsPage.create(datasets, paging.page, paging.page_size, total_pages, total_records, request)
+    return PaginatedResultsPage.create(datasets, paging.page, paging.page_size, total_records, request)
 
 
 def get_reporting_org_actions(crm: SuiteCRM, org_id: str) -> list[ReportingOrgAction]:

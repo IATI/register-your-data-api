@@ -18,12 +18,17 @@ class PaginatedResultsPage(BaseResponse, Generic[T]):
         data: Sequence[T],
         page: int,
         page_size: int,
-        total_pages: int,
         total_records: int,
         request: Request | None = None,
     ) -> "PaginatedResultsPage[T]":
 
         base_url = request.url.remove_query_params(["page", "page_size"]) if request else URL("")
+
+        # This is always validated earlier in the request handling process
+        if page_size == 0:
+            raise ValueError("page_size must be greater than 0")
+
+        total_pages = -(-total_records // page_size)
 
         next_page_url = None
         if page < total_pages:
