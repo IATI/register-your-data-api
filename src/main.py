@@ -9,7 +9,7 @@ from fastapi import FastAPI
 
 import register_your_data_api.exceptions
 import register_your_data_api.util as util
-from register_your_data_api.routers import datasets, misc, reporting_orgs, users
+from register_your_data_api.routers import datasets, discoverable_reporting_orgs, misc, reporting_orgs, users
 
 
 @contextlib.asynccontextmanager
@@ -29,6 +29,7 @@ async def prod_lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def add_routers_and_general_exception_handling(app: FastAPI) -> None:
+    app.include_router(discoverable_reporting_orgs.router)
     app.include_router(reporting_orgs.router)
     app.include_router(datasets.router)
     app.include_router(users.router)
