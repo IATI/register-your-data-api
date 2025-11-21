@@ -425,6 +425,18 @@ def get_reporting_org_users(
 
     user_ids_in_fga_not_suitecrm = user_ids_from_fga - {*names_emails_from_suitecrm.keys()}
 
+    # iterate over the provider admins, and add their names/emails to the dict
+    for provider_admin in users_for_org_from_fga:
+        if provider_admin.role == fga_models.FineGrainedAuthorisationRole.PROVIDER_ADMIN:
+            filters = Filter()
+            filters.equal("id", str(provider_admin.user))
+            crm_user = crm.get_records("Contacts", fields=["last_name", "email1"], filters=filters)
+            if "data" in crm_user and len(crm_user["data"]) > 0:
+                names_emails_from_suitecrm[crm_user["data"][0]["id"]] = (
+                    crm_user["data"][0]["attributes"]["last_name"],
+                    crm_user["data"][0]["attributes"]["email1"],
+                )
+
     if user_ids_in_fga_not_suitecrm:
         error_message = (
             f"GET request to reporting-orgs/{org_id}/users by user id: {user.user_id_crm} "
