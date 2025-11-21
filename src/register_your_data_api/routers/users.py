@@ -60,9 +60,7 @@ def add_user_to_reporting_org(
         )
 
     # Query SuiteCRM to check that the reporting_org exists
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     if not check_crm_record_exists(crm, "Accounts", payload.oid):
         raise HTTPException(
@@ -128,9 +126,7 @@ def update_user_role_in_reporting_org(
     )
 
     # Get SuiteCRM client and validate entities exist
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     # 2. Check that the target user exists in CRM
     assert_precondition_met(
@@ -261,9 +257,7 @@ def remove_user_from_reporting_org(
     )
 
     # Get SuiteCRM client and validate entities exist
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     # 2. Check that the target user exists in CRM
     assert_precondition_met(

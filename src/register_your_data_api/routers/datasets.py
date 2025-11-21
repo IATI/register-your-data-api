@@ -37,9 +37,7 @@ def create_dataset(
 
     context: Context = request.app.state.context
 
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     if not user.validator.user_can_create_reporting_org_datasets(uuid.UUID(dataset.owner_organisation_id)):
         context.audit_logger.error(
@@ -83,9 +81,7 @@ def get_dataset_detail(
 
     context: Context = request.app.state.context
 
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     ds_filters = Filter()
     ds_filters.equal("id", str(dataset_id))
@@ -129,9 +125,7 @@ def update_dataset(
 
     context: Context = request.app.state.context
 
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     # Fetch the original dataset record so we know which reporting org it belongs to
     ds_filters = Filter()
@@ -201,9 +195,7 @@ def delete_dataset(
 
     context: Context = request.app.state.context
 
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     # Fetch the original dataset record so we know which reporting org it belongs to
     ds_filters = Filter()
