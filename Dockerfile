@@ -14,5 +14,6 @@ RUN pip install -r requirements.txt
 RUN pip install -e .
 
 COPY src/ src
+COPY alembic/ alembic
 
 ENTRYPOINT ["fastapi", "run", "src/main.py", "--port", "8000"]
