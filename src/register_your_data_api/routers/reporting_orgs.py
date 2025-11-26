@@ -5,10 +5,12 @@ from typing import Any, Callable
 
 import fastapi
 import starlette
-from fastapi import Security
+from fastapi import Depends, Security
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from libsuitecrm import Filter, SuiteCRM  # type: ignore
+
+from register_your_data_api.dependencies import get_suitecrm_audit_headers
 
 from ..auth import authz
 from ..auth import models as auth_models
@@ -28,7 +30,6 @@ from ..data_handling.data_schemas import (
     DiscoverableReportingOrgMetadata,
     PaginationQueryParams,
     ReportingOrgAction,
-    ReportingOrgCreateModel,
     ReportingOrgMetadata,
     ReportingOrgUpdateModel,
     ReportingOrgUserCreateModel,
@@ -162,6 +163,7 @@ def create_reporting_org(
     user: auth_models.UserAndCredentials = Security(
         authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org", "ryd:reporting_org:create"]
     ),
+    suitecrm_audit_headers: dict[str, str] = Depends(get_suitecrm_audit_headers),
 ) -> UserReportingOrgRelationSingleResponse:
 
     context: Context = request.app.state.context
@@ -179,15 +181,16 @@ def create_reporting_org(
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     try:
-        # 1. Convert to a complete reporting org record, then to a SuiteCRM reporting org record
-        reporting_org_to_create = ReportingOrgCreateModel(**reporting_org.model_dump())
-        reporting_org_for_suitecrm = get_suitecrm_dict_from_reporting_org(reporting_org_to_create)
-        suitecrm_reporting_org = crm.create_record("Accounts", reporting_org_for_suitecrm)
+        # 1. Create the reporting on SuiteCRM
+        reporting_org_for_suitecrm = get_suitecrm_dict_from_reporting_org(reporting_org)
+        suitecrm_reporting_org = crm.create_record(
+            "Accounts", reporting_org_for_suitecrm, headers=suitecrm_audit_headers
+        )
         new_reporting_org = get_reporting_org_meta_from_suitecrm_response(suitecrm_reporting_org["attributes"])
         undo_actions.append(
             (
                 f"delete organisation with id: {suitecrm_reporting_org["id"]}",
-                lambda: crm.delete_record("Accounts", suitecrm_reporting_org["id"]),
+                lambda: crm.delete_record("Accounts", suitecrm_reporting_org["id"], headers=suitecrm_audit_headers),
             )
         )
 
@@ -195,13 +198,20 @@ def create_reporting_org(
         # reporting org (Accounts) in SuiteCRM, but only if user is not
         # operating in the capacity as a super_admin
         if not user.validator.is_superadmin:
-            crm.create_relationship("Accounts", suitecrm_reporting_org["id"], "contacts", "Contacts", user.user_id_crm)
+            crm.create_relationship(
+                "Accounts",
+                suitecrm_reporting_org["id"],
+                "contacts",
+                "Contacts",
+                user.user_id_crm,
+                headers=suitecrm_audit_headers,
+            )
             undo_msg = (
                 "delete relationship between organisation id: "
                 f"{suitecrm_reporting_org["id"]} and user id: {user.user_id_crm}"
             )
             undo_func: Callable[[], Any] = lambda: crm.delete_relationship(
-                "Accounts", suitecrm_reporting_org["id"], "contacts", user.user_id_crm
+                "Accounts", suitecrm_reporting_org["id"], "contacts", user.user_id_crm, headers=suitecrm_audit_headers
             )
             undo_actions.append((undo_msg, undo_func))
 
@@ -240,6 +250,7 @@ def update_reporting_org(
     user: auth_models.UserAndCredentials = Security(
         authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org", "ryd:reporting_org:update"]
     ),
+    suitecrm_audit_headers: dict[str, str] = Depends(get_suitecrm_audit_headers),
 ) -> UserReportingOrgRelationSingleResponse:
 
     context: Context = request.app.state.context
@@ -267,7 +278,9 @@ def update_reporting_org(
     # 2. Make request to SuiteCRM to update reporting_org
     reporting_org_for_suitecrm = get_suitecrm_dict_from_reporting_org(updated_reporting_org)
     try:
-        suitecrm_reporting_org = crm.update_record("Accounts", str(org_id), reporting_org_for_suitecrm)
+        suitecrm_reporting_org = crm.update_record(
+            "Accounts", str(org_id), reporting_org_for_suitecrm, headers=suitecrm_audit_headers
+        )
         updated_reporting_org_from_suitecrm = get_reporting_org_meta_from_suitecrm_response(
             suitecrm_reporting_org["attributes"]
         )
@@ -292,6 +305,7 @@ def delete_reporting_org(
     org_id: uuid.UUID,
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:delete"]),
+    suitecrm_audit_headers: dict[str, str] = Depends(get_suitecrm_audit_headers),
 ) -> JSONResponse:
 
     context: Context = request.app.state.context
@@ -343,26 +357,16 @@ def delete_reporting_org(
         # 2. Set iati_registry_approved and iati_registry_discoverable to 0
         crm.update_record("Accounts", str(org_id), {"iati_registry_approved": "0", "iati_registry_discoverable": "0"})
 
-        # Only if one of the fields was true, create an undo action setting the fields back to their original values
-        if (
-            crm_reporting_org["data"][0].get("attributes", {}).get("iati_registry_approved") == "1"
-            or crm_reporting_org["data"][0].get("attributes", {}).get("iati_registry_discoverable") == "1"
-        ):
+        # TODO: 2b. Set iati_registry_discoverable to False when that new field is
+        # available on SuiteCRM.
+        crm.update_record("Accounts", str(org_id), {"iati_registry_approved": False})
+
+        if crm_reporting_org["data"][0].get("attributes", {}).get("iati_registry_approved") is True:
+            # Only need to add undo action if the field was previously True
             undo_actions.append(
                 (
                     f"Set iati_registry_approved back to True for organisation with id: {str(org_id)}",
-                    lambda: crm.update_record(
-                        "Accounts",
-                        str(org_id),
-                        {
-                            "iati_registry_approved": crm_reporting_org["data"][0]
-                            .get("attributes", {})
-                            .get("iati_registry_approved"),
-                            "iati_registry_discoverable": crm_reporting_org["data"][0]
-                            .get("attributes", {})
-                            .get("iati_registry_discoverable"),
-                        },
-                    ),
+                    lambda: crm.update_record("Accounts", str(org_id), {"iati_registry_approved": True}),
                 )
             )
 
@@ -375,7 +379,7 @@ def delete_reporting_org(
         datasets_from_suitecrm = crm.get_records("IATI_Datasets", filters=filters, fields=["id"], page_size=1500)
         for dataset in datasets_from_suitecrm.get("data", []):
             dataset_id = dataset["id"]
-            crm.delete_record("IATI_Datasets", dataset_id)
+            crm.delete_record("IATI_Datasets", dataset_id, headers=suitecrm_audit_headers)
 
         context.audit_logger.info(
             f"User {user.user_id_crm} deleted reporting org {org_id} with its "

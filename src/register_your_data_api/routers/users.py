@@ -5,10 +5,12 @@ from typing import Any, Callable
 
 import fastapi
 import starlette
-from fastapi import Security
+from fastapi import Depends, Security
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from libsuitecrm import SuiteCRM  # type: ignore
+
+from register_your_data_api.dependencies import get_suitecrm_audit_headers
 
 from ..auth import authz
 from ..auth.fga import models as fga_models
@@ -35,6 +37,7 @@ def add_user_to_reporting_org(
     payload: OrganisationId,
     request: starlette.requests.Request,
     user: UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:user"]),
+    suitecrm_audit_headers: dict[str, str] = Depends(get_suitecrm_audit_headers),
 ) -> JSONResponse:
     """Handles a request by the logged in user to be associated with the specified reporting_org"""
 
@@ -72,10 +75,12 @@ def add_user_to_reporting_org(
 
     try:
         # 1. Create a relationship between the current user (Contacts) and the
-        crm.create_relationship("Accounts", payload.oid, "contacts", "Contacts", user.user_id_crm)
+        crm.create_relationship(
+            "Accounts", payload.oid, "contacts", "Contacts", user.user_id_crm, headers=suitecrm_audit_headers
+        )
         undo_msg = f"delete relationship between organisation id: {payload.oid} and user id: {user.user_id_crm}"
         undo_func: Callable[[], Any] = lambda: crm.delete_relationship(
-            "Accounts", payload.oid, "contacts", user.user_id_crm
+            "Accounts", payload.oid, "contacts", user.user_id_crm, headers=suitecrm_audit_headers
         )
         undo_actions.append((undo_msg, undo_func))
 
@@ -105,6 +110,7 @@ def update_user_role_in_reporting_org(
     new_role: UserRoleUpdateModel,
     request: starlette.requests.Request,
     user: UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:user:update"]),
+    suitecrm_audit_headers: dict[str, str] = Depends(get_suitecrm_audit_headers),
 ) -> JSONResponse:
     """Updates a user's role within a reporting organization"""
 
@@ -181,7 +187,9 @@ def update_user_role_in_reporting_org(
             "Creating relationship in the CRM."
         )
         try:
-            crm.create_relationship("Accounts", str(org_id), "contacts", "Contacts", str(user_id))
+            crm.create_relationship(
+                "Accounts", str(org_id), "contacts", "Contacts", str(user_id), headers=suitecrm_audit_headers
+            )
         except Exception as e:
             context.app_logger.exception(
                 "Exception encountered when attempting to create the relationship in the CRM between "
@@ -236,6 +244,7 @@ def remove_user_from_reporting_org(
     org_id: uuid.UUID,
     request: starlette.requests.Request,
     user: UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:user:update"]),
+    suitecrm_audit_headers: dict[str, str] = Depends(get_suitecrm_audit_headers),
 ) -> JSONResponse:
     """Removes a user's role in a reporting organization"""
 

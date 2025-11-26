@@ -4,10 +4,12 @@ import uuid
 
 import fastapi
 import starlette
-from fastapi import Security
+from fastapi import Depends, Security
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from libsuitecrm import Filter, SuiteCRM  # type: ignore
+
+from register_your_data_api.dependencies import get_suitecrm_audit_headers
 
 from ..auth import authz
 from ..auth import models as auth_models
@@ -33,6 +35,7 @@ def create_dataset(
     request: starlette.requests.Request,
     dataset: DatasetCreateModel,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:dataset"]),
+    suitecrm_audit_headers: dict[str, str] = Depends(get_suitecrm_audit_headers),
 ) -> DatasetSingleResponse:
 
     context: Context = request.app.state.context
@@ -60,7 +63,7 @@ def create_dataset(
 
     # Create the record on SuiteCRM to add the dataset
     dataset_for_suitecrm = get_suitecrm_dict_from_dataset(dataset)
-    suitecrm_dataset = crm.create_record("IATI_Datasets", dataset_for_suitecrm)
+    suitecrm_dataset = crm.create_record("IATI_Datasets", dataset_for_suitecrm, headers=suitecrm_audit_headers)
     new_dataset = get_dataset_meta_from_suitecrm_response(suitecrm_dataset["attributes"])
 
     return DatasetSingleResponse(
@@ -121,6 +124,7 @@ def update_dataset(
     user: auth_models.UserAndCredentials = Security(
         authz.get_user_authnz, scopes=["ryd", "ryd:dataset", "ryd:dataset:update"]
     ),
+    suitecrm_audit_headers: dict[str, str] = Depends(get_suitecrm_audit_headers),
 ) -> DatasetSingleResponse:
 
     context: Context = request.app.state.context
@@ -174,7 +178,9 @@ def update_dataset(
     if dataset.visibility is None:
         dataset_for_suitecrm.pop("iati_visibility", None)
 
-    suitecrm_dataset = crm.update_record("IATI_Datasets", str(dataset_id), dataset_for_suitecrm)
+    suitecrm_dataset = crm.update_record(
+        "IATI_Datasets", str(dataset_id), dataset_for_suitecrm, headers=suitecrm_audit_headers
+    )
     updated_dataset = get_dataset_meta_from_suitecrm_response(suitecrm_dataset["attributes"])
 
     return DatasetSingleResponse(
@@ -191,6 +197,7 @@ def delete_dataset(
     dataset_id: uuid.UUID,
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:dataset:delete"]),
+    suitecrm_audit_headers: dict[str, str] = Depends(get_suitecrm_audit_headers),
 ) -> JSONResponse:
 
     context: Context = request.app.state.context
@@ -228,7 +235,7 @@ def delete_dataset(
     )
 
     try:
-        crm.delete_record("IATI_Datasets", str(dataset_id))
+        crm.delete_record("IATI_Datasets", str(dataset_id), headers=suitecrm_audit_headers)
     except Exception:
         error_id = uuid.uuid4()
         context.app_logger.exception(
