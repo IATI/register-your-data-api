@@ -20,6 +20,7 @@ from register_your_data_api.auth.fga.fga_provider_db import (
     SuperAdminUserDbModel,
 )
 from register_your_data_api.auth.fga.models import FineGrainedAuthorisationRole
+from register_your_data_api.client_application_details_provider import ClientApplicationDetails
 from tests.helpers.keys import KeyDict
 
 from ..helpers import prom
@@ -155,6 +156,13 @@ class MockedTestContext(util.Context):
                 return self._mocked_suitecrm_client
 
         return MockedSuiteCRMClientFactory()
+
+    def get_client_application_details(self, client_id: str) -> ClientApplicationDetails:
+        return ClientApplicationDetails(
+            client_id=client_id,
+            application_id="00000000-0000-0000-0000-000000000001",
+            application_name="Mocked Test Application",
+        )
 
 
 class MockedAppAndContext:
@@ -449,6 +457,7 @@ def make_context() -> util.Context:
 
 def make_access_token_payload(
     subject: str = "some_subject",
+    client_id: str = "some_client",
     audience: str = "some_audience",
     scopes: str = "some_scope",
     expiry_delta: int = 3600,
@@ -459,6 +468,8 @@ def make_access_token_payload(
     ----------
     subject : str, optional
         Subject for the claim, by default "some_subject"
+    client_id : str, optional
+        Client id for the claim, by default "some_client"
     audience : str, optional
         Audience for the claim, by default "some_audience"
     scope : str, optional
@@ -472,6 +483,7 @@ def make_access_token_payload(
     """
     return {
         "sub": subject,
+        "client_id": client_id,
         "iatiRegistryId": subject,  # for the automated tests, set these to the same
         "name": "some_user_name",
         "aud": audience,
