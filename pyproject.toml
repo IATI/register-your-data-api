@@ -1,6 +1,6 @@
 [project]
 name = "register-your-data-api"
-version = "0.1.7"
+version = "0.1.8"
 requires-python = ">= 3.12.11"
 readme = "README.md"
 authors = [{name="IATI Secretariat", email="support@iatistandard.org"}]
