@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 
+## [0.1.8] - 2025-11-21
+
+### Added
+
+ - SuiteCRMClientFactory class which generates SuiteCRM clients using a cached
+   access token and refreshes the token when needed.
+
 ## [0.1.6] - 2025-11-19
 
 ### Added
