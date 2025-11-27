@@ -58,9 +58,7 @@ def get_reporting_orgs(
 
     if len(user_reporting_org_associations) > 0:
 
-        crm: SuiteCRM = context.get_suitecrm_client()
-
-        crm.fetch_access_token()
+        crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
         fields = SUITECRM_REPORTING_ORG_FIELDS
 
@@ -128,9 +126,7 @@ def get_reporting_org_detail(
     filters = Filter()
     filters.equal("id", str(org_id))
 
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     fields = SUITECRM_REPORTING_ORG_FIELDS
 
@@ -175,9 +171,7 @@ def create_reporting_org(
 
     undo_actions: list[tuple[str, Callable[[], Any]]] = []
 
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     try:
         # 1. Create the reporting on SuiteCRM
@@ -255,9 +249,7 @@ def update_reporting_org(
             "error to the provider of the tool you are using to access the IATI Registry.",
         )
 
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     # 1. Query SuiteCRM to check that the reporting_org exists
     if not check_crm_record_exists(crm, "Accounts", str(org_id)):
@@ -313,9 +305,7 @@ def delete_reporting_org(
         ),
     )
 
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     # 1. Query SuiteCRM to check that the reporting_org exists. We just fetch the item, because
     # we need to update it later on, and we need to know what its current state is for undo purposes.
@@ -381,8 +371,6 @@ def delete_reporting_org(
             detail=f"There was a problem deleting the reporting org. Error id: {error_trace_id}",
         )
 
-    crm.logout()
-
     return fastapi.responses.JSONResponse({"status": "success", "data": None, "error": None})
 
 
@@ -405,9 +393,7 @@ def get_reporting_org_users(
             "error to the provider of the tool you are using to access the IATI Registry.",
         )
 
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     current_user_role_for_ro = user.validator.get_user_role_for_reporting_org(org_id)
 
@@ -486,9 +472,7 @@ def get_reporting_org_datasets(
             "error to the provider of the tool you are using to access the IATI Registry.",
         )
 
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     # 1. Check that the Reporting Org exists in the CRM
     if not check_crm_record_exists(crm, "Accounts", str(org_id)):

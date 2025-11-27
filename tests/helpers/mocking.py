@@ -11,7 +11,6 @@ import sqlmodel
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import FastAPI
-from libsuitecrm import SuiteCRM  # type: ignore
 
 import register_your_data_api.util as util
 from main import add_routers_and_general_exception_handling
@@ -26,6 +25,19 @@ from tests.helpers.keys import KeyDict
 from ..helpers import prom
 from .mocked_objects.mock_suitecrm import MockSuiteCRM
 from .setup_and_teardown import setup_db
+
+
+class StringContaining:
+    def __init__(self, substring: str) -> None:
+        self.substring = substring
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, str):
+            return NotImplemented
+        return self.substring in other
+
+    def __repr__(self) -> str:
+        return f"<StringContaining '{self.substring}'>"
 
 
 class MockKeyStore:
@@ -136,8 +148,13 @@ class MockedTestContext(util.Context):
     def _setup_key_store(self) -> None:
         self._key_store = MockKeyStore()  # type: ignore
 
-    def get_suitecrm_client(self) -> SuiteCRM:
-        return self._mocked_suitecrm_client
+    @property
+    def suitecrm_client_factory(self) -> object:  # type: ignore
+        class MockedSuiteCRMClientFactory:
+            def get_client(inner_self) -> MockSuiteCRM:
+                return self._mocked_suitecrm_client
+
+        return MockedSuiteCRMClientFactory()
 
 
 class MockedAppAndContext:

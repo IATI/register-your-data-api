@@ -9,8 +9,9 @@ from typing import Any, Final, TextIO, Type
 
 import dotenv
 import jwt
-from libsuitecrm import SuiteCRM  # type: ignore
 from prometheus_client import Counter, Gauge, Info, disable_created_metrics
+
+from register_your_data_api.suitecrm_client_factory import SuiteCRMClientFactory
 
 from .audit import EncryptedFormatter
 from .auth.fga.fga_provider import FineGrainedAuthorisationProvider
@@ -126,6 +127,10 @@ class Context:
         self._suitecrm_client_id = self._env["DATA_REGISTRY_SUITECRM_CLIENT_ID"]
         self._suitecrm_client_secret = self._env["DATA_REGISTRY_SUITECRM_CLIENT_SECRET"]
 
+        self._suitecrm_client_factory = SuiteCRMClientFactory(
+            self._app_logger, self._suitecrm_api_url, self._suitecrm_client_id, self._suitecrm_client_secret
+        )
+
         # self._crm_uuid_provider = UserCRMUUIDProviderAsgardeo(self._env["USER_CRM_UUID_CONFIG_STRING"])
 
         try:
@@ -143,9 +148,6 @@ class Context:
                 metric.inc()
             else:
                 metric.labels(failure_mode=failure_mode_label).inc()
-
-    def get_suitecrm_client(self) -> SuiteCRM:
-        return SuiteCRM(self._suitecrm_api_url, self._suitecrm_client_id, self._suitecrm_client_secret)
 
     def __del__(self) -> None:
         try:
@@ -330,3 +332,7 @@ class Context:
     @property
     def suitecrm_client_secret(self) -> str:
         return self._suitecrm_client_secret
+
+    @property
+    def suitecrm_client_factory(self) -> SuiteCRMClientFactory:
+        return self._suitecrm_client_factory

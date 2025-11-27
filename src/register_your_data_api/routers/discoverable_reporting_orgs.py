@@ -30,9 +30,7 @@ def get_discoverable_reporting_orgs(
 
     context: Context = request.app.state.context
 
-    crm: SuiteCRM = context.get_suitecrm_client()
-
-    crm.fetch_access_token()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     fields = get_discoverable_reporting_org_suitecrm_fields()
 
@@ -51,7 +49,5 @@ def get_discoverable_reporting_orgs(
     # SuiteCRM doesn't return the total_records, so we set page size = 1, limit fields to id and fetch one record
     total_records_resp = crm.get_records("Accounts", filters=filters, fields=["id"], page_number=1, page_size=1)
     total_records = total_records_resp.get("meta", {}).get("total-pages", 1)
-
-    crm.logout()
 
     return PaginatedResultsPage.create(discoverable_orgs, paging.page, paging.page_size, total_records, request)
