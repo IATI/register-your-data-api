@@ -137,7 +137,7 @@ class ReportingOrgMetadata(pydantic.BaseModel):
     first_publication_date: str | None = pydantic.Field(None)
     hq_country: str | None = pydantic.Field(None)
     human_readable_name: str
-    # number_of_published_datasets: str | None = pydantic.Field(None)
+    number_of_published_datasets: int = 0
     organisation_identifier: str
     organisation_type: str | None = pydantic.Field(None)
     phone: str | None = pydantic.Field(None)

@@ -37,8 +37,7 @@ RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST = [
     ["hq_country", "iati_hq_country"],
     ["human_readable_name", "name"],
     ["iati_registry_discoverable", "iati_registry_discoverable"],
-    # TODO: uncomment below (and verify correct) once the derived field exists in SuiteCRM again
-    # ["number_of_published_datasets", "iati_num_published_datasets"],
+    ["number_of_published_datasets", "iati_num_published_datasets"],
     ["organisation_identifier", "iati_identifier"],
     ["organisation_type", "iati_org_type"],
     ["phone", "phone_office"],
