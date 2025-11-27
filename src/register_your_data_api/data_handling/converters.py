@@ -26,7 +26,7 @@ RYD_API_TO_SUITECRM_DATASET_FIELDS_LIST = [
 
 RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST = [
     ["address", "jjwg_maps_address_c"],
-    ["contact_email", "email1"],
+    ["contact_email", "iati_admin_email"],
     ["created_date", "date_entered"],
     ["data_portal_url", "iati_data_portal_url"],
     ["default_licence_id", "iati_default_licence_id"],
