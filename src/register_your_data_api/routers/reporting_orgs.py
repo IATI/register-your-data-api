@@ -31,6 +31,7 @@ from ..data_handling.data_schemas import (
     ReportingOrgCreateModel,
     ReportingOrgMetadata,
     ReportingOrgUpdateModel,
+    ReportingOrgUserCreateModel,
     UserReportingOrgLimitedMetadataRelation,
     UserReportingOrgRelation,
     UserReportingOrgRelationListResponse,
@@ -69,6 +70,7 @@ def get_reporting_orgs(
         for user_reporting_org_association in user_reporting_org_associations:
             filters = Filter()
             filters.equal("id", str(user_reporting_org_association.reporting_org))
+            filters.equal("iati_registry_discoverable", "1")
             crm_reporting_org = crm.get_records("Accounts", fields=fields, filters=filters)
             if "data" in crm_reporting_org and len(crm_reporting_org["data"]) > 0:
                 suitecrm_collected_responses.append(*crm_reporting_org["data"])
@@ -99,6 +101,8 @@ def get_reporting_orgs(
                 )
             )
 
+        reporting_orgs_list.sort(key=lambda org: org.metadata.human_readable_name.lower())
+
     return UserReportingOrgRelationListResponse(status="success", error=None, data=reporting_orgs_list)
 
 
@@ -125,6 +129,7 @@ def get_reporting_org_detail(
 
     filters = Filter()
     filters.equal("id", str(org_id))
+    filters.equal("iati_registry_discoverable", "1")
 
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
@@ -153,7 +158,7 @@ def get_reporting_org_detail(
 @router.post("/", status_code=201)
 def create_reporting_org(
     request: starlette.requests.Request,
-    reporting_org: ReportingOrgCreateModel,
+    reporting_org: ReportingOrgUserCreateModel,
     user: auth_models.UserAndCredentials = Security(
         authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org", "ryd:reporting_org:create"]
     ),
@@ -174,8 +179,9 @@ def create_reporting_org(
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     try:
-        # 1. Create the reporting on SuiteCRM
-        reporting_org_for_suitecrm = get_suitecrm_dict_from_reporting_org(reporting_org)
+        # 1. Convert to a complete reporting org record, then to a SuiteCRM reporting org record
+        reporting_org_to_create = ReportingOrgCreateModel(**reporting_org.model_dump())
+        reporting_org_for_suitecrm = get_suitecrm_dict_from_reporting_org(reporting_org_to_create)
         suitecrm_reporting_org = crm.create_record("Accounts", reporting_org_for_suitecrm)
         new_reporting_org = get_reporting_org_meta_from_suitecrm_response(suitecrm_reporting_org["attributes"])
         undo_actions.append(
@@ -311,9 +317,12 @@ def delete_reporting_org(
     # we need to update it later on, and we need to know what its current state is for undo purposes.
     filters = Filter()
     filters.equal("id", org_id)
-    # TODO: also fetch iati_registry_discoverable when that field is available on SuiteCRM
     crm_reporting_org = crm.get_records(
-        "Accounts", page_number=1, page_size=1, fields=["id", "iati_registry_approved"], filters=filters
+        "Accounts",
+        page_number=1,
+        page_size=1,
+        fields=["id", "iati_registry_approved", "iati_registry_discoverable"],
+        filters=filters,
     )
 
     assert_precondition_met(
@@ -331,19 +340,29 @@ def delete_reporting_org(
     undo_actions: list[tuple[str, Callable[[], Any]]] = []
 
     try:
-        # 2a. Set iati_registry_approved to False on the reporting org to disable
-        # further dataset publishing, and set discoverable to be False
+        # 2. Set iati_registry_approved and iati_registry_discoverable to 0
+        crm.update_record("Accounts", str(org_id), {"iati_registry_approved": "0", "iati_registry_discoverable": "0"})
 
-        # TODO: 2b. Set iati_registry_discoverable to False when that new field is
-        # available on SuiteCRM.
-        crm.update_record("Accounts", str(org_id), {"iati_registry_approved": False})
-
-        if crm_reporting_org["data"][0].get("attributes", {}).get("iati_registry_approved") is True:
-            # Only need to add undo action if the field was previously True
+        # Only if one of the fields was true, create an undo action setting the fields back to their original values
+        if (
+            crm_reporting_org["data"][0].get("attributes", {}).get("iati_registry_approved") == "1"
+            or crm_reporting_org["data"][0].get("attributes", {}).get("iati_registry_discoverable") == "1"
+        ):
             undo_actions.append(
                 (
                     f"Set iati_registry_approved back to True for organisation with id: {str(org_id)}",
-                    lambda: crm.update_record("Accounts", str(org_id), {"iati_registry_approved": True}),
+                    lambda: crm.update_record(
+                        "Accounts",
+                        str(org_id),
+                        {
+                            "iati_registry_approved": crm_reporting_org["data"][0]
+                            .get("attributes", {})
+                            .get("iati_registry_approved"),
+                            "iati_registry_discoverable": crm_reporting_org["data"][0]
+                            .get("attributes", {})
+                            .get("iati_registry_discoverable"),
+                        },
+                    ),
                 )
             )
 
@@ -448,6 +467,8 @@ def get_reporting_org_users(
         )
     ]
 
+    users_for_org.sort(key=lambda u: u.name.lower())
+
     return CRMUserListResponse(data=users_for_org, status="success", error=None)
 
 
@@ -484,8 +505,14 @@ def get_reporting_org_datasets(
     # 2. Fetch the datasets
     filters = Filter()
     filters.equal("iati_dataset_owner_org_id", str(org_id))
+    filters.equal("iati_registry_discoverable", "1")
     datasets_from_suitecrm = crm.get_records(
-        "IATI_Datasets", filters=filters, page_number=paging.page, page_size=paging.page_size
+        "IATI_Datasets",
+        filters=filters,
+        page_number=paging.page,
+        page_size=paging.page_size,
+        sort_dir="ascending",
+        sort_field="name",
     )
 
     # 3. SuiteCRM doesn't return the total_records, so we set page size = 1 and make a request

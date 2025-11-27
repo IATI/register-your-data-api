@@ -35,10 +35,15 @@ def get_discoverable_reporting_orgs(
     fields = get_discoverable_reporting_org_suitecrm_fields()
 
     filters = Filter()
-    # TODO: change to iati_registry_discoverable when field is available
-    filters.equal("iati_registry_approved", True)
+    filters.equal("iati_registry_discoverable", "1")
     suitecrm_reporting_orgs = crm.get_records(
-        "Accounts", fields=fields, filters=filters, page_number=paging.page, page_size=paging.page_size
+        "Accounts",
+        fields=fields,
+        filters=filters,
+        page_number=paging.page,
+        page_size=paging.page_size,
+        sort_dir="ascending",
+        sort_field="name",
     )
 
     discoverable_orgs = [
