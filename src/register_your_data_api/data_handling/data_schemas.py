@@ -79,7 +79,7 @@ class DatasetReadModel(pydantic.BaseModel):
     metadata: DatasetMetadata
 
 
-class ReportingOrgCreateModel(pydantic.BaseModel):
+class ReportingOrgUserCreateModel(pydantic.BaseModel):
     """Class for the data which comes from a POST to /reporting-orgs to create an org"""
 
     address: str | None
@@ -98,6 +98,12 @@ class ReportingOrgCreateModel(pydantic.BaseModel):
     reporting_source_type: str | None
     short_name: str | None
     website: str | None
+
+
+class ReportingOrgCreateModel(ReportingOrgUserCreateModel):
+    """Class for the data which comes from a POST to /reporting-orgs to create an org"""
+
+    iati_registry_discoverable: str = "1"
 
 
 class ReportingOrgUpdateModel(pydantic.BaseModel):
@@ -131,7 +137,7 @@ class ReportingOrgMetadata(pydantic.BaseModel):
     first_publication_date: str | None = pydantic.Field(None)
     hq_country: str | None = pydantic.Field(None)
     human_readable_name: str
-    # number_of_published_datasets: str | None = pydantic.Field(None)
+    number_of_published_datasets: int = 0
     organisation_identifier: str
     organisation_type: str | None = pydantic.Field(None)
     phone: str | None = pydantic.Field(None)

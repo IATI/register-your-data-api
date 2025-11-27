@@ -7,9 +7,9 @@ from .data_schemas import (
     DatasetReadModel,
     DatasetUpdateModel,
     DiscoverableReportingOrgMetadata,
-    ReportingOrgCreateModel,
     ReportingOrgMetadata,
     ReportingOrgUpdateModel,
+    ReportingOrgUserCreateModel,
 )
 
 RYD_API_TO_SUITECRM_DATASET_FIELDS_LIST = [
@@ -26,7 +26,7 @@ RYD_API_TO_SUITECRM_DATASET_FIELDS_LIST = [
 
 RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST = [
     ["address", "jjwg_maps_address_c"],
-    ["contact_email", "email1"],
+    ["contact_email", "iati_admin_email"],
     ["created_date", "date_entered"],
     ["data_portal_url", "iati_data_portal_url"],
     ["default_licence_id", "iati_default_licence_id"],
@@ -36,8 +36,8 @@ RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST = [
     ["first_publication_date", "iati_first_publish_date"],
     ["hq_country", "iati_hq_country"],
     ["human_readable_name", "name"],
-    # TODO: uncomment below (and verify correct) once the derived field exists in SuiteCRM again
-    # ["number_of_published_datasets", "iati_num_published_datasets"],
+    ["iati_registry_discoverable", "iati_registry_discoverable"],
+    ["number_of_published_datasets", "iati_num_published_datasets"],
     ["organisation_identifier", "iati_identifier"],
     ["organisation_type", "iati_org_type"],
     ["phone", "phone_office"],
@@ -135,7 +135,7 @@ def get_suitecrm_dict_from_dataset(dataset: DatasetCreateModel | DatasetUpdateMo
 
 
 def get_suitecrm_dict_from_reporting_org(
-    reporting_org: ReportingOrgMetadata | ReportingOrgCreateModel | ReportingOrgUpdateModel,
+    reporting_org: ReportingOrgMetadata | ReportingOrgUserCreateModel | ReportingOrgUpdateModel,
 ) -> dict[str, Any]:
     suitecrm_dict = {RYD_API_TO_SUITECRM_REPORTING_ORG_FIELD_MAP[k]: v for k, v in reporting_org}
     return suitecrm_dict

@@ -318,8 +318,12 @@ def test_reporting_org_create(user: int) -> None:
         for field in new_reporting_org.keys():
             assert response_obj["data"]["metadata"][field] == new_reporting_org[field]
 
-        # TODO: add in "number_of_published_datasets" when it's back in SuiteCRM and rest of RYD API
-        for derived_field in ["created_date", "first_publication_date", "registry_approved"]:
+        for derived_field in [
+            "created_date",
+            "first_publication_date",
+            "number_of_published_datasets",
+            "registry_approved",
+        ]:
             assert derived_field in response_obj["data"]["metadata"].keys()
 
         assert isinstance(response_obj["data"]["metadata"]["registry_approved"], bool)
