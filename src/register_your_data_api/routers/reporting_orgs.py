@@ -509,7 +509,6 @@ def get_reporting_org_datasets(
     # 2. Fetch the datasets
     filters = Filter()
     filters.equal("iati_dataset_owner_org_id", str(org_id))
-    filters.equal("iati_registry_discoverable", "1")
     datasets_from_suitecrm = crm.get_records(
         "IATI_Datasets",
         filters=filters,
