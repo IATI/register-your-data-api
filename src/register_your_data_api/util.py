@@ -11,6 +11,10 @@ import dotenv
 import jwt
 from prometheus_client import Counter, Gauge, Info, disable_created_metrics
 
+from register_your_data_api.client_application_details_provider import (
+    ClientApplicationDetails,
+    ClientApplicationDetailsProvider,
+)
 from register_your_data_api.suitecrm_client_factory import SuiteCRMClientFactory
 
 from .audit import EncryptedFormatter
@@ -36,6 +40,7 @@ class Context:
         "DATA_REGISTRY_SUITECRM_CLIENT_ID",
         "DATA_REGISTRY_SUITECRM_CLIENT_SECRET",
         "USER_CRM_UUID_CONFIG_STRING",
+        "CLIENT_APPLICATION_DETAILS_FILE",
     ]
 
     LOG_LEVELS: Final[dict[str, int]] = {
@@ -103,10 +108,17 @@ class Context:
         self._app_logger.info(f"Register Your Data {self.VERSION}")
 
         try:
+            self._app_logger.info("Setting up client application details provider")
+            self._setup_client_application_details_provider()
+        except Exception as err:
+            self._app_logger.fatal(f"Cannot setup client application details provider ({err})")
+            raise err
+
+        try:
             self._app_logger.info("Setting up JWK store")
             self._setup_key_store()
         except Exception as err:
-            self._app_logger.fatal(f"Cannot not setup JWK key store ({err})")
+            self._app_logger.fatal(f"Cannot setup JWK key store ({err})")
             raise err
 
         try:
@@ -154,6 +166,9 @@ class Context:
             self._app_log_fh.close()
         except AttributeError:
             pass
+
+    def _setup_client_application_details_provider(self) -> None:
+        self._client_app_details = ClientApplicationDetailsProvider(self._env["CLIENT_APPLICATION_DETAILS_FILE"])
 
     def _setup_prom_metrics(self) -> None:
         """Add all the prometheus metrics"""
@@ -336,3 +351,8 @@ class Context:
     @property
     def suitecrm_client_factory(self) -> SuiteCRMClientFactory:
         return self._suitecrm_client_factory
+
+    def get_client_application_details(self, client_id: str) -> ClientApplicationDetails:
+        """Retrieves details about the client application given its client ID."""
+
+        return self._client_app_details.get_client_application_details(client_id)

@@ -9,6 +9,7 @@ WORKDIR /api
 COPY requirements.txt .
 COPY pyproject.toml .
 COPY licences.json .
+COPY ryd-client-applications-metadata.json .
 
 RUN pip install -r requirements.txt
 RUN pip install -e .

@@ -83,7 +83,9 @@ class MockSuiteCRM:
 
         return response
 
-    def create_record(self, module_name: str, data: dict[str, Any]) -> dict[str, Any]:
+    def create_record(
+        self, module_name: str, data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         return {
             "id": str(uuid.uuid4()),
             "attributes": {
@@ -94,14 +96,22 @@ class MockSuiteCRM:
             },
         }
 
-    def update_record(self, module_name: str, id: str, data: dict[str, Any]) -> None:
+    def update_record(
+        self, module_name: str, id: str, data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> None:
         return None
 
-    def delete_record(self, module_name: str, id: str) -> None:
+    def delete_record(self, module_name: str, id: str, headers: dict[str, str] | None = None) -> None:
         return None
 
     def create_relationship(
-        self, module_name: str, record_id: str, link_field_name: str, related_module_name: str, related_id: str
+        self,
+        module_name: str,
+        record_id: str,
+        link_field_name: str,
+        related_module_name: str,
+        related_id: str,
+        headers: dict[str, str] | None = None,
     ) -> None:
         return None
 
@@ -120,5 +130,7 @@ class MockSuiteCRM:
 
         return response
 
-    def delete_relationship(self, module_name: str, id: str, link_field_name: str, related_id: str) -> None:
+    def delete_relationship(
+        self, module_name: str, id: str, link_field_name: str, related_id: str, headers: dict[str, str] | None = None
+    ) -> None:
         return None
