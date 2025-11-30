@@ -6,6 +6,7 @@ from .data_schemas import (
     DatasetMetadata,
     DatasetReadModel,
     DatasetUpdateModel,
+    DiscoverableReportingOrg,
     DiscoverableReportingOrgMetadata,
     ReportingOrgMetadata,
     ReportingOrgUpdateModel,
@@ -111,14 +112,24 @@ def get_reporting_org_meta_from_suitecrm_response(suitecrm_response: dict[str, A
     return ReportingOrgMetadata(**dict_with_ryd_api_field_names)
 
 
+def get_discoverable_reporting_org_from_suitecrm_response(
+    suitecrm_response_record: dict[str, Any],
+) -> DiscoverableReportingOrg:
+    """Gets a native DiscoverableReportingOrg object from a SuiteCRM response"""
+
+    meta = get_discoverable_reporting_org_meta_from_suitecrm_response(suitecrm_response_record["attributes"])
+
+    return DiscoverableReportingOrg(id=suitecrm_response_record["id"], metadata=meta)
+
+
 def get_discoverable_reporting_org_meta_from_suitecrm_response(
-    suitecrm_response: dict[str, Any],
+    suitecrm_response_attribs: dict[str, Any],
 ) -> DiscoverableReportingOrgMetadata:
     """Gets a native DiscoverableReportingOrgMetadata object from a SuiteCRM response"""
 
     limited_fields = list(DiscoverableReportingOrgMetadata.model_fields.keys())
 
-    cleaned_response = get_dict_with_specified_fields(suitecrm_response, SUITECRM_REPORTING_ORG_FIELDS)
+    cleaned_response = get_dict_with_specified_fields(suitecrm_response_attribs, SUITECRM_REPORTING_ORG_FIELDS)
 
     dict_with_ryd_api_field_names = {
         SUITECRM_TO_RYD_API_REPORTING_ORG_FIELD_MAP[k]: v

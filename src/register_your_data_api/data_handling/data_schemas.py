@@ -158,6 +158,11 @@ class DiscoverableReportingOrgMetadata(pydantic.BaseModel):
     website: str | None = pydantic.Field(None)
 
 
+class DiscoverableReportingOrg(pydantic.BaseModel):
+    id: str
+    metadata: DiscoverableReportingOrgMetadata
+
+
 class ReportingOrgAction(pydantic.BaseModel):
     action_type: str
     user_application_name: str
@@ -174,7 +179,7 @@ class UserReportingOrgRelation(pydantic.BaseModel):
     user_role: str
 
 
-class UserReportingOrgLimitedMetadataRelation(pydantic.BaseModel):
+class UserReportingOrgDiscoverableMetadataRelation(pydantic.BaseModel):
     id: str
     metadata: DiscoverableReportingOrgMetadata
     reporting_org_actions: list  # type: ignore
@@ -208,6 +213,6 @@ class UserReportingOrgRelationSingleResponse(pydantic.BaseModel):
 
 class UserReportingOrgRelationListResponse(pydantic.BaseModel):
 
-    data: list[UserReportingOrgRelation | UserReportingOrgLimitedMetadataRelation]
+    data: list[UserReportingOrgRelation | UserReportingOrgDiscoverableMetadataRelation]
     error: str | None = pydantic.Field(None)
     status: str
