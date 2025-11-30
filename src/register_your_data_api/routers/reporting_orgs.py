@@ -33,7 +33,7 @@ from ..data_handling.data_schemas import (
     ReportingOrgMetadata,
     ReportingOrgUpdateModel,
     ReportingOrgUserCreateModel,
-    UserReportingOrgLimitedMetadataRelation,
+    UserReportingOrgDiscoverableMetadataRelation,
     UserReportingOrgRelation,
     UserReportingOrgRelationListResponse,
     UserReportingOrgRelationSingleResponse,
@@ -56,7 +56,7 @@ def get_reporting_orgs(
 
     user_reporting_org_associations = user.validator.get_users_fine_grained_associations()
 
-    reporting_orgs_list: list[UserReportingOrgRelation | UserReportingOrgLimitedMetadataRelation] = []
+    reporting_orgs_list: list[UserReportingOrgRelation | UserReportingOrgDiscoverableMetadataRelation] = []
 
     if len(user_reporting_org_associations) > 0:
 
