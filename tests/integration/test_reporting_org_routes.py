@@ -3,7 +3,10 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from register_your_data_api.data_handling.data_schemas import DiscoverableReportingOrgMetadata, ReportingOrgMetadata
+from register_your_data_api.data_handling.data_schemas import (
+    DiscoverableReportingOrgMetadata,
+    ReportingOrgMetadata,
+)
 
 from ..helpers.mocking import MockedAppAndContext
 from ..helpers.utilities import find_record_in_response, is_valid_uuid
