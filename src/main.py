@@ -37,6 +37,6 @@ def add_routers_and_general_exception_handling(app: FastAPI) -> None:
     register_your_data_api.exceptions.add_exception_handlers(app)
 
 
-app = FastAPI(title="Register Your Data", lifespan=prod_lifespan)
+app = FastAPI(title="Register Your Data", lifespan=prod_lifespan, redirect_slashes=False)
 
 add_routers_and_general_exception_handling(app)
