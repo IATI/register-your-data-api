@@ -30,7 +30,7 @@ from ..utilities import assert_precondition_met, check_crm_record_exists
 router = fastapi.APIRouter(prefix="/api/v1/datasets")
 
 
-@router.post("/")
+@router.post("")
 def create_dataset(
     request: starlette.requests.Request,
     dataset: DatasetCreateModel,

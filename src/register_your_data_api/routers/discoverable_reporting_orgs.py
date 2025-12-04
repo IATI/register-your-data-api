@@ -21,7 +21,7 @@ from ..util import Context
 router = fastapi.APIRouter(prefix="/api/v1/discoverable-reporting-orgs")
 
 
-@router.get("/")
+@router.get("")
 def get_discoverable_reporting_orgs(
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org"]),

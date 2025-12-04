@@ -45,7 +45,7 @@ from ..utilities import assert_precondition_met, check_crm_record_exists, perfor
 router = fastapi.APIRouter(prefix="/api/v1/reporting-orgs")
 
 
-@router.get("/")
+@router.get("")
 def get_reporting_orgs(
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org"]),
@@ -156,7 +156,7 @@ def get_reporting_org_detail(
     return UserReportingOrgRelationSingleResponse(status="success", error=None, data=user_reporting_org_relation)
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 def create_reporting_org(
     request: starlette.requests.Request,
     reporting_org: ReportingOrgUserCreateModel,
