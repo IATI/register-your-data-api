@@ -84,6 +84,29 @@ def check_crm_record_exists(crm: SuiteCRM, module: str, id: str) -> bool:
     return "data" in results and len(results["data"]) == 1
 
 
+def get_num_crm_records(crm: SuiteCRM, module: str, field: str, value: str) -> int:
+    """Gets the number of records from a specified module matching the criterion specified
+
+    Parameters
+    ----------
+    module : str
+        The module name on SuiteCRM
+    field : str
+        The fieldname to check
+    value : str
+        The value the field should take
+
+    Returns
+    -------
+    int
+        The number of matching records
+    """
+    filters = Filter()
+    filters.equal(field, value)
+    results = crm.get_records(module, filters=filters, fields=["id"])
+    return len(results["data"]) if "data" in results else 0
+
+
 def perform_undo_actions(
     context: Context, undo_actions: list[tuple[str, Callable[[], Any]]], func_name: str
 ) -> uuid.UUID:
