@@ -105,7 +105,7 @@ class ReportingOrgUserCreateModel(pydantic.BaseModel):
     phone: str | None
     region: str | None
     reporting_source_type: str | None
-    short_name: str | None
+    short_name: Annotated[str, pydantic.AfterValidator(validate_alpha_numeric_hyphen_str)]
     website: str | None
 
 
