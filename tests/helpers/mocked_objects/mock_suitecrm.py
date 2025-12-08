@@ -92,6 +92,8 @@ class MockSuiteCRM:
                 "created_date": get_current_timestamp_as_str(),
                 "first_publication_date": "",
                 "registry_approved": "0",
+                "iati_url_update_date": "",
+                "iati_metadata_update_date": "",
                 **data,
             },
         }
