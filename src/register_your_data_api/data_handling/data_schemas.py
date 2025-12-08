@@ -80,7 +80,7 @@ class DatasetReadModel(pydantic.BaseModel):
 
 
 class ReportingOrgUserCreateModel(pydantic.BaseModel):
-    """Class for the data which comes from a POST to /reporting-orgs to create an org"""
+    """Class for the data which comes from a user's POST request to /reporting-orgs to create an org"""
 
     address: str | None
     contact_email: str = pydantic.Field(min_length=3)
@@ -101,7 +101,7 @@ class ReportingOrgUserCreateModel(pydantic.BaseModel):
 
 
 class ReportingOrgCreateModel(ReportingOrgUserCreateModel):
-    """Class for the data which comes from a POST to /reporting-orgs to create an org"""
+    """Class for the data which supplements a user's POST request to /reporting-orgs to create an org"""
 
     iati_registry_discoverable: str = "1"
 

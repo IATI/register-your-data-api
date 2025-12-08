@@ -30,6 +30,7 @@ from ..data_handling.data_schemas import (
     DiscoverableReportingOrgMetadata,
     PaginationQueryParams,
     ReportingOrgAction,
+    ReportingOrgCreateModel,
     ReportingOrgMetadata,
     ReportingOrgUpdateModel,
     ReportingOrgUserCreateModel,
@@ -182,7 +183,8 @@ def create_reporting_org(
 
     try:
         # 1. Create the reporting on SuiteCRM
-        reporting_org_for_suitecrm = get_suitecrm_dict_from_reporting_org(reporting_org)
+        reporting_org_to_create = ReportingOrgCreateModel(**reporting_org.model_dump())
+        reporting_org_for_suitecrm = get_suitecrm_dict_from_reporting_org(reporting_org_to_create)
         suitecrm_reporting_org = crm.create_record(
             "Accounts", reporting_org_for_suitecrm, headers=suitecrm_audit_headers
         )
