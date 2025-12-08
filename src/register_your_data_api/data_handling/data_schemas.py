@@ -1,6 +1,15 @@
-from typing import Literal
+import re
+from typing import Annotated, Literal
 
 import pydantic
+
+alpha_numeric_hyphen_regex = re.compile(r"^[a-zA-Z0-9-_]+$")
+
+
+def validate_alpha_numeric_hyphen_str(value: str) -> str:
+    if not alpha_numeric_hyphen_regex.match(value):
+        raise ValueError("String must contain only alphanumeric characters, hyphens, or underscores")
+    return value
 
 
 class BaseResponse(pydantic.BaseModel):
@@ -47,7 +56,7 @@ class DatasetCreateModel(pydantic.BaseModel):
     human_readable_name: str
     licence_id: str
     owner_organisation_id: str
-    short_name: str
+    short_name: Annotated[str, pydantic.AfterValidator(validate_alpha_numeric_hyphen_str)]
     source_type: str
     url: str
     visibility: str
