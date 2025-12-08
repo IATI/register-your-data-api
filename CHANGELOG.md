@@ -9,11 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+ - Validation of dataset, reporting_org short_name to alphanumeric, '-', '_' chars
+ - On record creation, check dataset, reporting_org short_name for uniqueness
+
 ### Changed
 
 ### Deprecated
 
 ### Fixed
+
+ - Ensured that newly created reporting orgs are made discoverable on the Registry.
 
 ### Removed
 
