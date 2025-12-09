@@ -30,6 +30,7 @@ from ..data_handling.data_schemas import (
     DiscoverableReportingOrgMetadata,
     PaginationQueryParams,
     ReportingOrgAction,
+    ReportingOrgCreateModel,
     ReportingOrgMetadata,
     ReportingOrgUpdateModel,
     ReportingOrgUserCreateModel,
@@ -40,7 +41,7 @@ from ..data_handling.data_schemas import (
 )
 from ..response_schemas import PaginatedResultsPage
 from ..util import Context
-from ..utilities import assert_precondition_met, check_crm_record_exists, perform_undo_actions
+from ..utilities import assert_precondition_met, check_crm_record_exists, get_num_crm_records, perform_undo_actions
 
 router = fastapi.APIRouter(prefix="/api/v1/reporting-orgs")
 
@@ -168,21 +169,40 @@ def create_reporting_org(
 
     context: Context = request.app.state.context
 
-    if not user.validator.user_can_create_reporting_org():
-        context.audit_logger.error(f"Request to create reporting org by unauthorised user id: {user.user_id_crm}")
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_403_FORBIDDEN,
-            detail="There is a problem with your credentials.  If this persists please report "
-            "error to the provider of the tool you are using to access the IATI Registry.",
-        )
+    assert_precondition_met(
+        context,
+        condition_func=lambda: user.validator.user_can_create_reporting_org(),
+        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+        audit_log_msg=(f"Request to create reporting org by unauthorised user id: {user.user_id_crm}"),
+        public_msg=(
+            "There is a problem with your credentials.  If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry."
+        ),
+    )
 
     undo_actions: list[tuple[str, Callable[[], Any]]] = []
 
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
+    # Check that the short name is unique
+    assert_precondition_met(
+        context,
+        condition_func=lambda: get_num_crm_records(crm, "Accounts", "iati_short_name", reporting_org.short_name) == 0,
+        status_code=fastapi.status.HTTP_409_CONFLICT,
+        audit_log_msg=(
+            f"Request to create reporting org by user id: {user.user_id_crm} "
+            f"with non-unique short name: {reporting_org.short_name}"
+        ),
+        public_msg=(
+            "Unable to create reporting org as there is already a reporting org with short_name "
+            f"'{reporting_org.short_name}' in the Registry."
+        ),
+    )
+
     try:
         # 1. Create the reporting on SuiteCRM
-        reporting_org_for_suitecrm = get_suitecrm_dict_from_reporting_org(reporting_org)
+        reporting_org_to_create = ReportingOrgCreateModel(**reporting_org.model_dump())
+        reporting_org_for_suitecrm = get_suitecrm_dict_from_reporting_org(reporting_org_to_create)
         suitecrm_reporting_org = crm.create_record(
             "Accounts", reporting_org_for_suitecrm, headers=suitecrm_audit_headers
         )

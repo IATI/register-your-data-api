@@ -25,7 +25,7 @@ from ..data_handling.data_schemas import (
     DatasetUpdateModel,
 )
 from ..util import Context
-from ..utilities import assert_precondition_met, check_crm_record_exists
+from ..utilities import assert_precondition_met, check_crm_record_exists, get_num_crm_records
 
 router = fastapi.APIRouter(prefix="/api/v1/datasets")
 
@@ -42,24 +42,52 @@ def create_dataset(
 
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
-    if not user.validator.user_can_create_reporting_org_datasets(uuid.UUID(dataset.owner_organisation_id)):
-        context.audit_logger.error(
+    # Check the user has permission to create datasets for the specified
+    # reporting org
+    assert_precondition_met(
+        context,
+        condition_func=lambda: user.validator.user_can_create_reporting_org_datasets(
+            uuid.UUID(dataset.owner_organisation_id)
+        ),
+        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+        audit_log_msg=(
             f"Request to create dataset for reporting org id: {dataset.owner_organisation_id} "
             f"by unauthorised user id: {user.user_id_crm}"
-        )
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_403_FORBIDDEN,
-            detail="There is a problem with your credentials.  If this persists please report "
-            "error to the provider of the tool you are using to access the IATI Registry.",
-        )
+        ),
+        public_msg=(
+            "There is a problem with your credentials. If this persists please report this "
+            "error to the provider of the tool you are using to access the IATI Registry."
+        ),
+    )
 
-    # Permission to create datasets for a reporting org does not imply that the reporting org
-    # for superadmins, so we still check the reporting org exists
-    if not check_crm_record_exists(crm, "Accounts", str(dataset.owner_organisation_id)):
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_404_NOT_FOUND,
-            detail=f"There is no organisation with ID {str(dataset.owner_organisation_id)} in the Registry.",
-        )
+    # Although most permissions as assocaited with reporting orgs, this is not
+    # the case for superadmins, so permission to create datasets for a reporting
+    # org does not imply that the reporting org exists, so we check that here
+    assert_precondition_met(
+        context,
+        condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(dataset.owner_organisation_id)),
+        status_code=fastapi.status.HTTP_404_NOT_FOUND,
+        audit_log_msg=(
+            f"Request to create dataset for non-existent reporting org id: {dataset.owner_organisation_id} "
+            f"by user id: {user.user_id_crm}"
+        ),
+        public_msg=(f"There is no organisation with ID {str(dataset.owner_organisation_id)} in the Registry."),
+    )
+
+    # Check that the short name is unique
+    assert_precondition_met(
+        context,
+        condition_func=lambda: get_num_crm_records(crm, "IATI_Datasets", "iati_short_name", dataset.short_name) == 0,
+        status_code=fastapi.status.HTTP_409_CONFLICT,
+        audit_log_msg=(
+            f"Request to create dataset for reporting org id: {dataset.owner_organisation_id} by user id: "
+            f"{user.user_id_crm} with non-unique short name: {dataset.short_name}"
+        ),
+        public_msg=(
+            "Unable to create dataset as there is already a dataset with short_name "
+            f"'{dataset.short_name}' in the Registry."
+        ),
+    )
 
     # Create the record on SuiteCRM to add the dataset
     dataset_for_suitecrm = get_suitecrm_dict_from_dataset(dataset)

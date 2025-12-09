@@ -1,6 +1,15 @@
-from typing import Literal
+import re
+from typing import Annotated, Literal
 
 import pydantic
+
+alpha_numeric_hyphen_regex = re.compile(r"^[a-zA-Z0-9-_]+$")
+
+
+def validate_alpha_numeric_hyphen_str(value: str) -> str:
+    if not alpha_numeric_hyphen_regex.match(value):
+        raise ValueError("String must contain only alphanumeric characters, hyphens, or underscores")
+    return value
 
 
 class BaseResponse(pydantic.BaseModel):
@@ -47,7 +56,7 @@ class DatasetCreateModel(pydantic.BaseModel):
     human_readable_name: str
     licence_id: str
     owner_organisation_id: str
-    short_name: str
+    short_name: Annotated[str, pydantic.AfterValidator(validate_alpha_numeric_hyphen_str)]
     source_type: str
     url: str
     visibility: str
@@ -80,7 +89,7 @@ class DatasetReadModel(pydantic.BaseModel):
 
 
 class ReportingOrgUserCreateModel(pydantic.BaseModel):
-    """Class for the data which comes from a POST to /reporting-orgs to create an org"""
+    """Class for the data which comes from a user's POST request to /reporting-orgs to create an org"""
 
     address: str | None
     contact_email: str = pydantic.Field(min_length=3)
@@ -96,12 +105,12 @@ class ReportingOrgUserCreateModel(pydantic.BaseModel):
     phone: str | None
     region: str | None
     reporting_source_type: str | None
-    short_name: str | None
+    short_name: Annotated[str, pydantic.AfterValidator(validate_alpha_numeric_hyphen_str)]
     website: str | None
 
 
 class ReportingOrgCreateModel(ReportingOrgUserCreateModel):
-    """Class for the data which comes from a POST to /reporting-orgs to create an org"""
+    """Class for the data which supplements a user's POST request to /reporting-orgs to create an org"""
 
     iati_registry_discoverable: str = "1"
 

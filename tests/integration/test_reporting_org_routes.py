@@ -377,6 +377,57 @@ def test_reporting_org_create_with_missing_fields(user: int) -> None:
             assert response_obj["status"] == "failed"
 
 
+@pytest.mark.parametrize(
+    "invalid_short_name",
+    [
+        "invalid short name!",  # contains spaces and exclamation mark
+        "invalid@name",  # contains special character '@'
+        "name/with/slash",  # contains slash
+        "name\\with\\backslash",  # contains backslash
+        "name:with:colon",  # contains colon
+        "name*with*asterisk",  # contains asterisk
+        "name?with?question",  # contains question mark)
+    ],
+)
+def test_reporting_org_create_with_invalid_short_name(invalid_short_name: str) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    new_reporting_org = {
+        "address": "Fake Address",
+        "contact_email": "org.admin@example.org",
+        "data_portal_url": "https://www.example.org/data-portal",
+        "default_licence_id": "gpl-3.0",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+        "exclusions_policy_url": "https://www.example.org/exclusions-policy",
+        "fax": "456-7890-1234",
+        "hq_country": "CO",
+        "human_readable_name": "Aid Agency",
+        "organisation_identifier": "CO-ABC-123456",
+        "organisation_type": "Regional NGO",
+        "phone": "123-4567-8901",
+        "region": "489",
+        "reporting_source_type": "primary_source",
+        "short_name": invalid_short_name,
+        "website": "https://www.example.org/",
+    }
+
+    with TestClient(fastAPIapp) as client:
+        response = client.post(
+            "/api/v1/reporting-orgs/",
+            headers=appAndContext.get_valid_authorization_header(0),
+            content=json.dumps(new_reporting_org),
+        )
+
+        assert response.status_code == 400
+
+        response_obj = json.loads(response.content)
+
+        assert response_obj["status"] == "failed"
+
+
 @pytest.mark.parametrize("user,status_code", [(0, 403), (1, 200), (2, 200), (3, 403), (4, 403)])
 def test_reporting_org_delete(user: int, status_code: int) -> None:
     appAndContext = MockedAppAndContext()
