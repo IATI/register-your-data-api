@@ -71,6 +71,18 @@ class DatasetUpdateModel(pydantic.BaseModel):
     visibility: Literal["public", "private"] | None = None
 
 
+class DatasetActions(pydantic.BaseModel):
+    action_type: str
+    created_date: str
+    id: str
+    responsible_org_id: str
+    responsible_org_name: str
+    user_application_id: str
+    user_application_name: str
+    user_id: str
+    user_name: str
+
+
 class DatasetMetadata(pydantic.BaseModel):
     human_readable_name: str
     short_name: str
@@ -86,6 +98,7 @@ class DatasetReadModel(pydantic.BaseModel):
     id: str
     owner_organisation_id: str
     metadata: DatasetMetadata
+    actions: list[DatasetActions] = []
 
 
 class ReportingOrgUserCreateModel(pydantic.BaseModel):

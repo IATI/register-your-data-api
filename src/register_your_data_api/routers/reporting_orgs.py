@@ -17,6 +17,7 @@ from ..auth import models as auth_models
 from ..auth.fga import models as fga_models
 from ..data_handling.converters import (
     SUITECRM_REPORTING_ORG_FIELDS,
+    get_dataset_actions_from_suitecrm_response,
     get_dataset_list_from_suitecrm_response,
     get_discoverable_reporting_org_meta_from_suitecrm_response,
     get_fga_role_as_str,
@@ -501,34 +502,38 @@ def get_reporting_org_datasets(
     org_id: uuid.UUID,
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:dataset"]),
+    include_actions: str = "no",
     paging: PaginationQueryParams = fastapi.Depends(),
 ) -> PaginatedResultsPage[DatasetReadModel]:
 
     context: Context = request.app.state.context
 
-    if not user.validator.user_can_read_reporting_org_datasets(org_id):
-        context.audit_logger.error(
+    assert_precondition_met(
+        context,
+        condition_func=lambda: user.validator.user_can_read_reporting_org_datasets(org_id),
+        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+        audit_log_msg=(
             f"Request to get reporting org datasets for org id: {org_id} "
             f"by unauthorised user id: {user.user_id_crm}"
-        )
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_403_FORBIDDEN,
-            detail="There is a problem with your credentials.  If this persists please report "
-            "error to the provider of the tool you are using to access the IATI Registry.",
-        )
+        ),
+        public_msg=(
+            "There is a problem with your credentials.  If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry."
+        ),
+    )
 
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
     # 1. Check that the Reporting Org exists in the CRM
-    if not check_crm_record_exists(crm, "Accounts", str(org_id)):
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_404_NOT_FOUND,
-            detail=f"There is no organisation with ID {str(org_id)} in the Registry.",
-        )
+    assert_precondition_met(
+        context,
+        condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
+        status_code=fastapi.status.HTTP_404_NOT_FOUND,
+        public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
+    )
 
     # 2. Fetch the datasets
-    filters = Filter()
-    filters.equal("iati_dataset_owner_org_id", str(org_id))
+    filters = Filter().equal("iati_dataset_owner_org_id", str(org_id))
     datasets_from_suitecrm = crm.get_records(
         "IATI_Datasets",
         filters=filters,
@@ -538,11 +543,16 @@ def get_reporting_org_datasets(
         sort_field="name",
     )
 
-    # 3. SuiteCRM doesn't return the total_records, so we set page size = 1 and make a request
+    # 3. SuiteCRM doesn't tell us the total number of records, so we set page size = 1 and make a request
     total_records_resp = crm.get_records("IATI_Datasets", filters=filters, fields=["id"], page_number=1, page_size=1)
     total_records = total_records_resp.get("meta", {}).get("total-pages", 1)
 
     datasets = get_dataset_list_from_suitecrm_response(datasets_from_suitecrm)
+
+    for dataset in datasets:
+        if include_actions == "yes":
+            suitecrm_actions = crm.get_relationship("IATI_Datasets", str(dataset.id), "iati_dataset_actions")
+            dataset.actions = get_dataset_actions_from_suitecrm_response(suitecrm_actions)
 
     return PaginatedResultsPage.create(datasets, paging.page, paging.page_size, total_records, request)
 
