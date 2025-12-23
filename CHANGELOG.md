@@ -9,9 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
- - Dataset actions returned on /dataset/{id} and /reporting-orgs/{id}/dataset
-   endpoints.
-
 ### Changed
 
 ### Deprecated
@@ -22,6 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.2.5]
+
+### Fixed
+
+ - Made the utility check_record_exists function more robust by limiting fields
+   returned.
+
+### Removed
+
+### Security
+
+## [0.2.4]
+
+### Added
+
+ - Dataset actions returned on /dataset/{id} and /reporting-orgs/{id}/dataset
+   endpoints.
 
 ## [0.2.3] - 2025-12-08
 
