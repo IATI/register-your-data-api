@@ -120,7 +120,7 @@ def get_dataset_detail(
 
     datasets = get_dataset_list_from_suitecrm_response(dataset_from_suitecrm)
 
-    # Check that the short name is unique
+    # Check that the dataset exists and is unique
     assert_precondition_met(
         context,
         condition_func=lambda: len(datasets) == 1,
