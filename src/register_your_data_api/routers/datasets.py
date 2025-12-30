@@ -14,6 +14,7 @@ from register_your_data_api.dependencies import get_suitecrm_audit_headers
 from ..auth import authz
 from ..auth import models as auth_models
 from ..data_handling.converters import (
+    get_dataset_actions_from_suitecrm_response,
     get_dataset_list_from_suitecrm_response,
     get_dataset_meta_from_suitecrm_response,
     get_suitecrm_dict_from_dataset,
@@ -114,19 +115,27 @@ def get_dataset_detail(
 
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
-    ds_filters = Filter()
-    ds_filters.equal("id", str(dataset_id))
+    ds_filters = Filter().equal("id", str(dataset_id))
     dataset_from_suitecrm = crm.get_records("IATI_Datasets", filters=ds_filters)
 
     datasets = get_dataset_list_from_suitecrm_response(dataset_from_suitecrm)
 
-    if len(datasets) == 0:
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_404_NOT_FOUND,
-            detail=f"There is no dataset with ID {dataset_id} in the Registry.",
-        )
+    # Check that the dataset exists and is unique
+    assert_precondition_met(
+        context,
+        condition_func=lambda: len(datasets) == 1,
+        status_code=fastapi.status.HTTP_404_NOT_FOUND,
+        audit_log_msg=(
+            f"User id {user.user_id_crm} attempted to access dataset with ID {dataset_id} which does not exist."
+        ),
+        public_msg=f"There is no dataset with ID {dataset_id} in the Registry.",
+    )
 
     dataset = datasets[0]
+
+    suitecrm_actions = crm.get_relationship("IATI_Datasets", str(dataset_id), "iati_dataset_actions")
+
+    dataset.actions = get_dataset_actions_from_suitecrm_response(suitecrm_actions)
 
     # using the owner_organisation_id of SuiteCRM response, verify the user has
     # access to read the datasets for that org

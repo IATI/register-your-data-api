@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
- - Validation of dataset, reporting_org short_name to alphanumeric, '-', '_' chars
- - On record creation, check dataset, reporting_org short_name for uniqueness
+ - Dataset actions returned on /dataset/{id} and /reporting-orgs/{id}/dataset
+   endpoints.
 
 ### Changed
 
@@ -18,12 +18,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
- - Ensured that newly created reporting orgs are made discoverable on the Registry.
-
 ### Removed
 
 ### Security
 
+
+## [0.2.3] - 2025-12-08
+
+### Added
+
+ - Validation of dataset, reporting_org short_name to alphanumeric, '-', '_' chars
+ - On record creation, check dataset, reporting_org short_name for uniqueness
+
+### Fixed
+
+ - Ensured that newly created reporting orgs are made discoverable on the Registry.
+
+## [0.2.2] - 2025-12-04
+
+### Changed
+
+ - Removed auto-redirect on trailing slashes
+
+### Fixed
+
+ - Unified all endpoints to not have any trailing slashes
+
+## [0.2.1] - 2025-11-30
+
+### Added
+
+ - Send custom audit headers to Registry on write requests.
 
 ## [0.1.8] - 2025-11-21
 

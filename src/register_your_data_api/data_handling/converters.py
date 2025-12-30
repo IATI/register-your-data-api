@@ -2,6 +2,7 @@ from typing import Any
 
 from ..auth.fga.models import FineGrainedAuthorisationRole
 from .data_schemas import (
+    DatasetActions,
     DatasetCreateModel,
     DatasetMetadata,
     DatasetReadModel,
@@ -24,6 +25,18 @@ RYD_API_TO_SUITECRM_DATASET_FIELDS_LIST = [
     ["url", "iati_dataset_url"],
     ["visibility", "iati_visibility"],
 ]
+
+RYD_API_TO_SUITECRM_DATASET_ACTION_FIELDS_LIST = [
+    ["action_type", "iati_action_type"],
+    ["created_date", "date_entered"],
+    ["responsible_org_id", "iati_action_responsible_org_id"],
+    ["responsible_org_name", "iati_action_responsible_org_name"],
+    ["user_application_id", "iati_user_application_id"],
+    ["user_application_name", "iati_user_application_name"],
+    ["user_id", "iati_action_actor_id"],
+    ["user_name", "iati_action_actor_name"],
+]
+
 
 RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST = [
     ["address", "jjwg_maps_address_c"],
@@ -53,6 +66,8 @@ RYD_API_REPORTING_ORG_FIELDS = [f[0] for f in RYD_API_TO_SUITECRM_REPORTING_ORG_
 
 SUITECRM_DATASET_FIELDS = [f[1] for f in RYD_API_TO_SUITECRM_DATASET_FIELDS_LIST]
 
+SUITECRM_DATASET_ACTION_FIELDS = [f[1] for f in RYD_API_TO_SUITECRM_DATASET_ACTION_FIELDS_LIST]
+
 SUITECRM_REPORTING_ORG_FIELDS = [f[1] for f in RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST]
 
 RYD_API_TO_SUITECRM_DATASET_FIELD_MAP = {f[0]: f[1] for f in RYD_API_TO_SUITECRM_DATASET_FIELDS_LIST}
@@ -60,6 +75,8 @@ RYD_API_TO_SUITECRM_DATASET_FIELD_MAP = {f[0]: f[1] for f in RYD_API_TO_SUITECRM
 RYD_API_TO_SUITECRM_REPORTING_ORG_FIELD_MAP = {f[0]: f[1] for f in RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST}
 
 SUITECRM_TO_RYD_API_DATASET_FIELD_MAP = {f[1]: f[0] for f in RYD_API_TO_SUITECRM_DATASET_FIELDS_LIST}
+
+SUITECRM_TO_RYD_API_DATASET_ACTION_FIELD_MAP = {f[1]: f[0] for f in RYD_API_TO_SUITECRM_DATASET_ACTION_FIELDS_LIST}
 
 SUITECRM_TO_RYD_API_REPORTING_ORG_FIELD_MAP = {f[1]: f[0] for f in RYD_API_TO_SUITECRM_REPORTING_ORG_FIELDS_LIST}
 
@@ -89,6 +106,29 @@ def get_dataset_meta_from_suitecrm_response(suitecrm_response: dict[str, Any]) -
     cleaned_response = get_dict_with_specified_fields(suitecrm_response, SUITECRM_DATASET_FIELDS)
     dict_with_ryd_api_field_names = {SUITECRM_TO_RYD_API_DATASET_FIELD_MAP[k]: v for k, v in cleaned_response.items()}
     return DatasetMetadata(**dict_with_ryd_api_field_names)
+
+
+def get_dataset_actions_from_suitecrm_response(suitecrm_response: dict[str, Any]) -> list[DatasetActions]:
+    """Gets a list of native DatasetAction objects from a SuiteCRM response"""
+
+    dataset_actions: list[DatasetActions] = []
+
+    if "data" not in suitecrm_response:
+        return dataset_actions
+
+    for record in suitecrm_response["data"]:
+        if "attributes" not in record:
+            continue
+
+        cleaned_response = get_dict_with_specified_fields(record["attributes"], SUITECRM_DATASET_ACTION_FIELDS)
+
+        action_dict = {SUITECRM_TO_RYD_API_DATASET_ACTION_FIELD_MAP[k]: v for k, v in cleaned_response.items()}
+
+        action_dict["id"] = record["id"]
+
+        dataset_actions.append(DatasetActions(**action_dict))
+
+    return dataset_actions
 
 
 def get_discoverable_reporting_org_suitecrm_fields() -> list[str]:
