@@ -80,7 +80,7 @@ def check_crm_record_exists(crm: SuiteCRM, module: str, id: str) -> bool:
     """
     filters = Filter()
     filters.equal("id", id)
-    results = crm.get_records(module, filters=filters, fields=[])
+    results = crm.get_records(module, filters=filters, fields=["id"])
     return "data" in results and len(results["data"]) == 1
 
 
