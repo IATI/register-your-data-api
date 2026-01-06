@@ -117,16 +117,25 @@ class MockSuiteCRM:
     ) -> None:
         return None
 
-    def get_relationship(self, module_name: str, id: str, link_field_name: str) -> Any:
+    def get_relationship(
+        self,
+        module_name: str,
+        id: str,
+        link_field_name: str,
+        sort_field: str | None = None,
+        sort_dir: str = "ascending",
+        page_number: int | None = None,
+        page_size: int | None = None,
+        filters: Filter | None = None,
+    ) -> Any:
 
         response = None
 
-        if module_name == "Accounts":
-            file = f"tests/artefacts/suitecrm-mocked-responses/get_relationship_ro_{id}.json"
-            if os.path.isfile(file):
-                with open(file, "r") as fh:
-                    content = fh.read()
-                    response = json.loads(content)
+        file = f"tests/artefacts/suitecrm-mocked-responses/get_relationship_{module_name.lower()}_id_{id}.json"
+        if os.path.isfile(file):
+            with open(file, "r") as fh:
+                content = fh.read()
+                response = json.loads(content)
         else:
             raise NotImplementedError()
 
