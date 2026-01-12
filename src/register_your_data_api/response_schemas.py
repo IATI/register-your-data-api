@@ -28,7 +28,7 @@ class PaginatedResultsPage(BaseResponse, Generic[T]):
         if page_size == 0:
             raise ValueError("page_size must be greater than 0")
 
-        total_pages = -(-total_records // page_size)
+        total_pages = max(1, -(-total_records // page_size))
 
         next_page_url = None
         if page < total_pages:
