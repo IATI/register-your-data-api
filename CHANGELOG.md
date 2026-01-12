@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.2.6]
+
+### Added
+
+ - Added paging to GET /reporting-orgs, as per the specification.
+
+### Fixed
+
+ - Fixed the 'last' paging link when there are no results to point to page 1.
+
 ## [0.2.5]
 
 ### Fixed
