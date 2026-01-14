@@ -65,7 +65,7 @@ class DatasetCreateModel(pydantic.BaseModel):
 class DatasetUpdateModel(pydantic.BaseModel):
     human_readable_name: str
     licence_id: str
-    short_name: str
+    short_name: Annotated[str, pydantic.AfterValidator(validate_alpha_numeric_hyphen_str)]
     source_type: str
     url: str
     visibility: Literal["public", "private"] | None = None
