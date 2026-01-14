@@ -228,6 +228,28 @@ def update_dataset(
     if dataset.visibility is None:
         dataset_for_suitecrm.pop("iati_visibility", None)
 
+    # Check that the short name is unique
+    assert_precondition_met(
+        context,
+        condition_func=lambda: (
+            original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_short_name"] == dataset.short_name
+            or (
+                original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_short_name"] != dataset.short_name
+                and get_num_crm_records(crm, "IATI_Datasets", "iati_short_name", dataset.short_name) == 0
+            )
+        ),
+        status_code=fastapi.status.HTTP_409_CONFLICT,
+        audit_log_msg=(
+            f"user id: {user.user_id_crm} - PATCH /datasets/ID - request to update short_name for dataset id: "
+            f"{str(dataset_id)} belonging to reporting org id: {owning_reporting_org} but there is already a dataset "
+            f"with short_name '{dataset.short_name}' in the Registry"  # nosec B608
+        ),
+        public_msg=(
+            "Error: unable to update dataset as there is already a dataset with short_name "  # nosec B608
+            f"'{dataset.short_name}' in the Registry."
+        ),
+    )
+
     suitecrm_dataset = crm.update_record(
         "IATI_Datasets", str(dataset_id), dataset_for_suitecrm, headers=suitecrm_audit_headers
     )
