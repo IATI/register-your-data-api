@@ -231,10 +231,3 @@ class UserReportingOrgRelationSingleResponse(pydantic.BaseModel):
     data: UserReportingOrgRelation
     error: str | None = pydantic.Field(None)
     status: str
-
-
-class UserReportingOrgRelationListResponse(pydantic.BaseModel):
-
-    data: list[UserReportingOrgRelation | UserReportingOrgDiscoverableMetadataRelation]
-    error: str | None = pydantic.Field(None)
-    status: str

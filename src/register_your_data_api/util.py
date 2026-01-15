@@ -168,7 +168,9 @@ class Context:
             pass
 
     def _setup_client_application_details_provider(self) -> None:
-        self._client_app_details = ClientApplicationDetailsProvider(self._env["CLIENT_APPLICATION_DETAILS_FILE"])
+        self._client_app_details = ClientApplicationDetailsProvider(
+            self._env["CLIENT_APPLICATION_DETAILS_FILE"], self._app_logger, self._audit_logger
+        )
 
     def _setup_prom_metrics(self) -> None:
         """Add all the prometheus metrics"""

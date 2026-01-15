@@ -8,7 +8,7 @@ import starlette
 from fastapi import Depends, Security
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
-from libsuitecrm import Filter, SuiteCRM  # type: ignore
+from libsuitecrm import Filter, RequestFailed, SuiteCRM  # type: ignore
 
 from register_your_data_api.dependencies import get_suitecrm_audit_headers
 
@@ -37,7 +37,6 @@ from ..data_handling.data_schemas import (
     ReportingOrgUserCreateModel,
     UserReportingOrgDiscoverableMetadataRelation,
     UserReportingOrgRelation,
-    UserReportingOrgRelationListResponse,
     UserReportingOrgRelationSingleResponse,
 )
 from ..response_schemas import PaginatedResultsPage
@@ -51,62 +50,80 @@ router = fastapi.APIRouter(prefix="/api/v1/reporting-orgs")
 def get_reporting_orgs(
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org"]),
+    paging: PaginationQueryParams = fastapi.Depends(),
     include_actions: str = "no",
-) -> UserReportingOrgRelationListResponse:
+) -> PaginatedResultsPage[UserReportingOrgRelation | UserReportingOrgDiscoverableMetadataRelation]:
 
     context: Context = request.app.state.context
 
-    user_reporting_org_associations = user.validator.get_users_fine_grained_associations()
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
+
+    try:
+        orgs_for_user = crm.get_relationship(
+            "Contacts",
+            user.user_id_crm,
+            "Accounts",
+            page_number=paging.page,
+            page_size=paging.page_size,
+            sort_field="name",
+            sort_dir="ascending",
+            filters=Filter().equal("iati_registry_discoverable", "1"),
+        )
+    except RequestFailed as e:
+        error_id = uuid.uuid4()
+        public_error_message = (
+            "There was a problem fetching the list of reporting orgs you are associated with. "
+            f"Please try again later, or contact IATI Support quoting error id: {error_id}"
+        )
+        context.app_logger.error(
+            f"Error: error id: {error_id} - user id: {user.user_id_crm} - GET /reporting-orgs - Problem when fetching "
+            "the list of reporting organisations for this user from SuiteCRM. "
+            f"Details: {str(e)}"
+        )
+        raise HTTPException(status_code=fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR, detail=public_error_message)
+
+    total_records = orgs_for_user.get("meta", {}).get("total-records", 0)
 
     reporting_orgs_list: list[UserReportingOrgRelation | UserReportingOrgDiscoverableMetadataRelation] = []
 
-    if len(user_reporting_org_associations) > 0:
+    for reporting_org_from_suitecrm in orgs_for_user["data"]:
+        role_for_org = user.validator.get_user_role_for_reporting_org(reporting_org_from_suitecrm["id"])
 
-        crm: SuiteCRM = context.suitecrm_client_factory.get_client()
+        if role_for_org is None:
+            context.app_logger.info(
+                f"Info: user id: {user.user_id_crm} - GET /reporting-orgs - user is associated with organisation "
+                f"{reporting_org_from_suitecrm["id"]} in the CRM but has no role for that organisation in the FGA DB. "
+                "Organisation was omitted from the list returned to the user."
+            )
+            continue
 
-        fields = SUITECRM_REPORTING_ORG_FIELDS
+        reporting_org_obj: ReportingOrgMetadata | DiscoverableReportingOrgMetadata
 
-        # The OR search in SuiteCRM appears to be broken; you can't search for items where id = 'A' OR id = 'B' OR ...
-        # It appears this doesn't work when the field being searched on is the same in each case. So we have to fetch
-        # the details for reporting orgs the user is associated with one at a time.
-        suitecrm_collected_responses: list[dict[str, Any]] = []
-        for user_reporting_org_association in user_reporting_org_associations:
-            filters = Filter()
-            filters.equal("id", str(user_reporting_org_association.reporting_org))
-            filters.equal("iati_registry_discoverable", "1")
-            crm_reporting_org = crm.get_records("Accounts", fields=fields, filters=filters)
-            if "data" in crm_reporting_org and len(crm_reporting_org["data"]) > 0:
-                suitecrm_collected_responses.append(*crm_reporting_org["data"])
-
-        for reporting_org_from_suitecrm in suitecrm_collected_responses:
-            role_for_org = user.validator.get_user_role_for_reporting_org(reporting_org_from_suitecrm["id"])
-            reporting_org_obj: ReportingOrgMetadata | DiscoverableReportingOrgMetadata
-
-            if role_for_org == fga_models.FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING:
-                reporting_org_obj = get_discoverable_reporting_org_meta_from_suitecrm_response(
-                    reporting_org_from_suitecrm["attributes"]
-                )
-            else:
-                reporting_org_obj = get_reporting_org_meta_from_suitecrm_response(
-                    reporting_org_from_suitecrm["attributes"]
-                )
-
-            reporting_orgs_list.append(
-                UserReportingOrgRelation(
-                    id=reporting_org_from_suitecrm["id"],
-                    user_role=get_fga_role_as_str(role_for_org),  # type: ignore
-                    metadata=reporting_org_obj,
-                    reporting_org_actions=(
-                        get_reporting_org_actions(crm, reporting_org_from_suitecrm["id"])
-                        if include_actions == "yes"
-                        else []
-                    ),
-                )
+        if role_for_org == fga_models.FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING:
+            reporting_org_obj = get_discoverable_reporting_org_meta_from_suitecrm_response(
+                reporting_org_from_suitecrm["attributes"]
+            )
+        else:
+            reporting_org_obj = get_reporting_org_meta_from_suitecrm_response(
+                reporting_org_from_suitecrm["attributes"]
             )
 
-        reporting_orgs_list.sort(key=lambda org: org.metadata.human_readable_name.lower())
+        reporting_orgs_list.append(
+            UserReportingOrgRelation(
+                id=reporting_org_from_suitecrm["id"],
+                user_role=get_fga_role_as_str(role_for_org),
+                metadata=reporting_org_obj,
+                reporting_org_actions=(
+                    get_reporting_org_actions(crm, reporting_org_from_suitecrm["id"])
+                    if include_actions == "yes"
+                    else []
+                ),
+            )
+        )
 
-    return UserReportingOrgRelationListResponse(status="success", error=None, data=reporting_orgs_list)
+    reporting_orgs_list.sort(key=lambda org: org.metadata.human_readable_name.lower())
+
+    return PaginatedResultsPage.create(reporting_orgs_list, paging.page, paging.page_size, total_records, request)
 
 
 @router.get("/{org_id}")

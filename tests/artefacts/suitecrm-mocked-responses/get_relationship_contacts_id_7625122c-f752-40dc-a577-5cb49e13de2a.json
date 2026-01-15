@@ -1,0 +1,141 @@
+{
+    "meta": {
+        "total-records": 2,
+        "total-pages": 1,
+        "records-on-this-page": 1
+    },
+    "data": [
+        {
+            "type": "Account",
+            "id": "ab851a83-a384-3eb9-caf0-68db8125b067",
+            "attributes": {
+                "name": "Agency 02",
+                "date_entered": "2025-09-30T07:06:00+00:00",
+                "description": "",
+                "phone_fax": "",
+                "billing_address_street": "",
+                "phone_office": "",
+                "website": "http://",
+                "email_addresses_primary": "",
+                "iati_short_name": "agency-02",
+                "iati_identifier": "XI-012345-6789",
+                "iati_org_type": "",
+                "iati_hq_country": "LV",
+                "iati_region": "89",
+                "iati_registry_approved": "1",
+                "iati_first_publish_date": "",
+                "iati_data_portal_url": "",
+                "iati_exclusions_policy_url": "",
+                "iati_default_licence_id": "cc-by-sa",
+                "iati_reporting_source_type": "primary_source"
+            },
+            "relationships": {
+                "AOS_Contracts": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/aos_contracts"
+                    }
+                },
+                "AOS_Invoices": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/aos_invoices"
+                    }
+                },
+                "AOS_Quotes": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/aos_quotes"
+                    }
+                },
+                "Accounts": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/members"
+                    }
+                },
+                "Bugs": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/bugs"
+                    }
+                },
+                "Calls": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/calls"
+                    }
+                },
+                "CampaignLog": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/campaigns"
+                    }
+                },
+                "Cases": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/cases"
+                    }
+                },
+                "Contacts": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/contacts"
+                    }
+                },
+                "EmailAddress": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/email_addresses"
+                    }
+                },
+                "Emails": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/emails"
+                    }
+                },
+                "IATI_Datasets": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/account_iati_datasets"
+                    }
+                },
+                "Leads": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/leads"
+                    }
+                },
+                "Meetings": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/meetings"
+                    }
+                },
+                "Notes": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/notes"
+                    }
+                },
+                "Opportunities": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/opportunities"
+                    }
+                },
+                "Project": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/project"
+                    }
+                },
+                "ProspectLists": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/prospect_lists"
+                    }
+                },
+                "SecurityGroups": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/SecurityGroups"
+                    }
+                },
+                "Tasks": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/tasks"
+                    }
+                },
+                "Users": {
+                    "links": {
+                        "related": "V8/module/Accounts/ab851a83-a384-3eb9-caf0-68db8125b067/relationships/created_by_link"
+                    }
+                }
+            }
+        }            
+    ]
+}

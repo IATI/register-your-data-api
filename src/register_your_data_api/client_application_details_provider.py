@@ -1,3 +1,4 @@
+from logging import Logger
 from typing import Annotated
 from uuid import UUID
 
@@ -23,10 +24,16 @@ class ClientApplicationDetails(BaseModel):
 
 class ClientApplicationDetailsProvider:
 
+    _app_logger: Logger
+    _audit_logger: Logger
     _CLIENT_APPLICATION_DETAILS: dict[str, ClientApplicationDetails] = {}
 
-    def __init__(self, filename: str) -> None:
+    def __init__(self, filename: str, app_logger: Logger, audit_logger: Logger) -> None:
         """Initializes the provider by loading client application details from a JSON file."""
+
+        self._app_logger = app_logger
+
+        self._audit_logger = audit_logger
 
         try:
             with open(filename, "r") as file:
@@ -46,6 +53,9 @@ class ClientApplicationDetailsProvider:
         """Retrieves details about the client application given its client ID."""
 
         if client_id not in self._CLIENT_APPLICATION_DETAILS:
-            raise ValueError("Unknown client application")
+            error_message = f"Unknown client application. Client id: {client_id} is not found in the list of clients"
+            self._app_logger.error(error_message)
+            self._audit_logger.error(error_message)
+            raise ValueError(error_message)
 
         return self._CLIENT_APPLICATION_DETAILS[client_id]
