@@ -89,6 +89,18 @@ def add_user_to_reporting_org(
         ),
     )
 
+    # Check the user isn't already a member of that organisation
+    assert_precondition_met(
+        context,
+        condition_func=lambda: user.validator.get_user_role_for_reporting_org(payload.oid) is None,
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        public_msg=(f"You are already associated with that reporting org id: {payload.oid}."),
+        app_log_msg=(
+            f"Error: - user id: {user.user_id_crm} - POST /{user_id}/reporting-org - Request by a user to "
+            f"join reporting org id: {payload.oid}, but they are already a member of that organisation"
+        ),
+    )
+
     undo_actions: list[tuple[str, Callable[[], Any]]] = []
 
     try:

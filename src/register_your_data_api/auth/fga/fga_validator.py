@@ -40,7 +40,7 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
             id_as_uuid = reporting_org_id if isinstance(reporting_org_id, UUID) else UUID(reporting_org_id)
             reporting_orgs = list(filter(lambda x: x.reporting_org == id_as_uuid, self.fine_grained_authorisations))
 
-        if len(reporting_orgs) == 1:
+        if len(reporting_orgs) >= 1:
             return reporting_orgs[0].role
 
         if self.is_superadmin:
