@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.2.7]
+
+### Fixed
+
+ - Fixed the dataset PATCH endpoint to include validation of the dataset
+   short_name field.
+
 ## [0.2.6]
 
 ### Added

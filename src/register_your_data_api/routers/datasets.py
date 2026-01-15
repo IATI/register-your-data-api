@@ -172,48 +172,83 @@ def update_dataset(
     ds_filters = Filter()
     ds_filters.equal("id", str(dataset_id))
     original_dataset_record_from_suitecrm = crm.get_records(
-        "IATI_Datasets", fields=["iati_dataset_owner_org_id", "iati_visibility"], filters=ds_filters
+        "IATI_Datasets", fields=["iati_dataset_owner_org_id", "iati_short_name", "iati_visibility"], filters=ds_filters
     )
 
-    if len(original_dataset_record_from_suitecrm["data"]) == 0:
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_404_NOT_FOUND,
-            detail=f"There is no dataset with ID {str(dataset_id)} in the Registry.",
-        )
+    assert_precondition_met(
+        context,
+        condition_func=lambda: len(original_dataset_record_from_suitecrm["data"]) != 0,
+        status_code=fastapi.status.HTTP_404_NOT_FOUND,
+        audit_log_msg=(
+            f"user id: {user.user_id_crm} - PATCH /datasets/ID - request to update dataset id: "  # nosec B608
+            f"{str(dataset_id)} but there is no dataset with that ID in the Registry"
+        ),
+        public_msg=(
+            f"Error: cannot update dataset with {str(dataset_id)} as there is no dataset with that ID."  # nosec B608
+        ),
+    )
 
     owning_reporting_org = original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_dataset_owner_org_id"]
 
-    if not user.validator.user_can_update_reporting_org_datasets(uuid.UUID(owning_reporting_org)):
-        context.audit_logger.error(
-            f"Request to update dataset for reporting org id: {owning_reporting_org} "  # nosec B608
-            f"by unauthorised user id: {user.user_id_crm}"
-        )
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_403_FORBIDDEN,
-            detail="There is a problem with your credentials.  If this persists please report "
-            "error to the provider of the tool you are using to access the IATI Registry.",
-        )
+    assert_precondition_met(
+        context,
+        condition_func=lambda: user.validator.user_can_update_reporting_org_datasets(uuid.UUID(owning_reporting_org)),
+        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+        audit_log_msg=(
+            f"user id: {user.user_id_crm} - PATCH /datasets/ID - request to update dataset id: "  # nosec B608
+            f"{str(dataset_id)} belonging to reporting org id: {owning_reporting_org} by unauthorised user"
+        ),
+        public_msg=(
+            "There is a problem with your credentials. If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry."
+        ),
+    )
 
-    # Create the record on SuiteCRM to add the dataset
+    # Create the SuiteCRM-structured record to update the dataset
     dataset_for_suitecrm = get_suitecrm_dict_from_dataset(dataset)
 
-    if (
-        not user.validator.user_can_update_reporting_org_dataset_visibility(owning_reporting_org)
-        and dataset.visibility is not None
-        and original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_visibility"] != dataset.visibility
-    ):
-        context.audit_logger.error(
-            f"Request to update dataset visibility for reporting org id: {owning_reporting_org} "  # nosec B608
-            f"by user id: {user.user_id_crm} authorised to update dataset but not dataset visibility "
-        )
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_403_FORBIDDEN,
-            detail="There is a problem with your credentials.  If this persists please report "
-            "error to the provider of the tool you are using to access the IATI Registry.",
-        )
+    assert_precondition_met(
+        context,
+        condition_func=lambda: (
+            user.validator.user_can_update_reporting_org_dataset_visibility(owning_reporting_org)
+            or dataset.visibility is None
+            or original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_visibility"] == dataset.visibility
+        ),
+        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+        audit_log_msg=(
+            f"user id: {user.user_id_crm} - PATCH /datasets/ID - request to update visibility for "  # nosec B608
+            f"dataset id: {str(dataset_id)} belonging to reporting org id: {owning_reporting_org} by unauthorised user"
+        ),
+        public_msg=(
+            "There is a problem with your credentials. If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry."
+        ),
+    )
 
     if dataset.visibility is None:
         dataset_for_suitecrm.pop("iati_visibility", None)
+
+    # Check that the short name is unique
+    assert_precondition_met(
+        context,
+        condition_func=lambda: (
+            original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_short_name"] == dataset.short_name
+            or (
+                original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_short_name"] != dataset.short_name
+                and get_num_crm_records(crm, "IATI_Datasets", "iati_short_name", dataset.short_name) == 0
+            )
+        ),
+        status_code=fastapi.status.HTTP_409_CONFLICT,
+        audit_log_msg=(
+            f"user id: {user.user_id_crm} - PATCH /datasets/ID - request to update short_name for dataset id: "
+            f"{str(dataset_id)} belonging to reporting org id: {owning_reporting_org} but there is already a dataset "
+            f"with short_name '{dataset.short_name}' in the Registry"  # nosec B608
+        ),
+        public_msg=(
+            "Error: unable to update dataset as there is already a dataset with short_name "  # nosec B608
+            f"'{dataset.short_name}' in the Registry."
+        ),
+    )
 
     suitecrm_dataset = crm.update_record(
         "IATI_Datasets", str(dataset_id), dataset_for_suitecrm, headers=suitecrm_audit_headers
