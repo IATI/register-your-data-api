@@ -90,8 +90,8 @@ def get_reporting_orgs(
         role_for_org = user.validator.get_user_role_for_reporting_org(reporting_org_from_suitecrm["id"])
 
         if role_for_org is None:
-            context.app_logger.warning(
-                f"Warning: user id: {user.user_id_crm} - GET /reporting-orgs - user is associated with organisation "
+            context.app_logger.info(
+                f"Info: user id: {user.user_id_crm} - GET /reporting-orgs - user is associated with organisation "
                 f"{reporting_org_from_suitecrm["id"]} in the CRM but has no role for that organisation in the FGA DB. "
                 "Organisation was omitted from the list returned to the user."
             )
