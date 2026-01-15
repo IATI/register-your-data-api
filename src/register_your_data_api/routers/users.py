@@ -45,31 +45,49 @@ def add_user_to_reporting_org(
 
     user_id_to_add_as_str = str(user_id)
 
-    if user_id_to_add_as_str != user.user_id_crm:
-        context.audit_logger.error(
-            f"Request to associate user with id: {user_id_to_add_as_str} to organisation with id: {payload.oid} "
-            f"by user with non-matching id: {user.user_id_crm}"
-        )
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-            detail="You cannot request a different user be associated with a reporting organisation.",
-        )
+    assert_precondition_met(
+        context,
+        condition_func=lambda: user_id_to_add_as_str == user.user_id_crm,
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        public_msg=("You cannot request a different user be associated with a reporting organisation."),
+        app_log_msg=(
+            f"Error: - user id: {user.user_id_crm} - POST /{user_id}/reporting-org - Request to associate user "
+            f"{user_id_to_add_as_str} with reporting org id: {payload.oid} by a different user with "
+            f"id: {user.user_id_crm}"
+        ),
+        audit_log_msg=(
+            f"Error: - user id: {user.user_id_crm} - POST /{user_id}/reporting-org - Request to associate user "
+            f"{user_id_to_add_as_str} with reporting org id: {payload.oid} by a different user with "
+            f"id: {user.user_id_crm}"
+        ),
+    )
 
     # Superadmins shouldn't be allowed to request association with any organisations
-    if user.validator.is_superadmin:
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-            detail="Superadmins cannot associate themselves with organisations.",
-        )
+    assert_precondition_met(
+        context,
+        condition_func=lambda: not user.validator.is_superadmin,
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        public_msg=("Superadmins cannot associate themselves with organisations."),
+        audit_log_msg=(
+            f"Error: - user id: {user.user_id_crm} - POST /{user_id}/reporting-org - Request by a superadmin to "
+            f"associate their account with a reporting org"
+        ),
+    )
 
     # Query SuiteCRM to check that the reporting_org exists
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
-    if not check_crm_record_exists(crm, "Accounts", payload.oid):
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-            detail=f"There is no organisation with ID {payload.oid} in the Registry.",
-        )
+    # Check the reporting org exists
+    assert_precondition_met(
+        context,
+        condition_func=lambda: check_crm_record_exists(crm, "Accounts", payload.oid),
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        public_msg=(f"There is no organisation with ID {payload.oid} in the Registry."),
+        app_log_msg=(
+            f"Error: - user id: {user.user_id_crm} - POST /{user_id}/reporting-org - Request by a user to "
+            f"associate their account with a non-existing reporting org"
+        ),
+    )
 
     undo_actions: list[tuple[str, Callable[[], Any]]] = []
 
@@ -84,7 +102,7 @@ def add_user_to_reporting_org(
         )
         undo_actions.append((undo_msg, undo_func))
 
-        # 2. Create a fine-grained authorisation for this user to be CONTRIBUTOR of new reporting_org
+        # 2. Create a fine-grained authorisation for this user to be CONTRIBUTOR_PENDING of new reporting_org
         user_reporting_org_role = fga_models.FineGrainedAuthorisationRoleAssociation(
             user=uuid.UUID(user.user_id_crm),
             reporting_org=uuid.UUID(payload.oid),
