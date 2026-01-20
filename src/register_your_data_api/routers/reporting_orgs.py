@@ -205,7 +205,10 @@ def create_reporting_org(
     # Check that the short name is unique
     assert_precondition_met(
         context,
-        condition_func=lambda: get_num_crm_records(crm, "Accounts", "iati_short_name", reporting_org.short_name) == 0,
+        condition_func=lambda: get_num_crm_records(
+            crm, "Accounts", {"iati_short_name": reporting_org.short_name, "iati_registry_discoverable": 1}
+        )
+        == 0,
         status_code=fastapi.status.HTTP_409_CONFLICT,
         audit_log_msg=(
             f"Request to create reporting org by user id: {user.user_id_crm} "

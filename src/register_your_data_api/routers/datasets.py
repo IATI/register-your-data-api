@@ -78,7 +78,7 @@ def create_dataset(
     # Check that the short name is unique
     assert_precondition_met(
         context,
-        condition_func=lambda: get_num_crm_records(crm, "IATI_Datasets", "iati_short_name", dataset.short_name) == 0,
+        condition_func=lambda: get_num_crm_records(crm, "IATI_Datasets", {"iati_short_name": dataset.short_name}) == 0,
         status_code=fastapi.status.HTTP_409_CONFLICT,
         audit_log_msg=(
             f"Request to create dataset for reporting org id: {dataset.owner_organisation_id} by user id: "
@@ -235,7 +235,7 @@ def update_dataset(
             original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_short_name"] == dataset.short_name
             or (
                 original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_short_name"] != dataset.short_name
-                and get_num_crm_records(crm, "IATI_Datasets", "iati_short_name", dataset.short_name) == 0
+                and get_num_crm_records(crm, "IATI_Datasets", {"iati_short_name": dataset.short_name}) == 0
             )
         ),
         status_code=fastapi.status.HTTP_409_CONFLICT,

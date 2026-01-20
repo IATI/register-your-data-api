@@ -84,17 +84,15 @@ def check_crm_record_exists(crm: SuiteCRM, module: str, id: str) -> bool:
     return "data" in results and len(results["data"]) == 1
 
 
-def get_num_crm_records(crm: SuiteCRM, module: str, field: str, value: str) -> int:
+def get_num_crm_records(crm: SuiteCRM, module: str, field_value_pairs: dict[str, Any]) -> int:
     """Gets the number of records from a specified module matching the criterion specified
 
     Parameters
     ----------
     module : str
         The module name on SuiteCRM
-    field : str
-        The fieldname to check
-    value : str
-        The value the field should take
+    field_value_pairs : dict[str, str]
+        A dictionary containing the fields and their associated values to filter on.
 
     Returns
     -------
@@ -102,7 +100,8 @@ def get_num_crm_records(crm: SuiteCRM, module: str, field: str, value: str) -> i
         The number of matching records
     """
     filters = Filter()
-    filters.equal(field, value)
+    for field, value in field_value_pairs.items():
+        filters.equal(field, value)
     results = crm.get_records(module, filters=filters, fields=["id"])
     return len(results["data"]) if "data" in results else 0
 
