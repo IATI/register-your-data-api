@@ -55,5 +55,3 @@ class PaginatedResultsPage(BaseResponse, Generic[T]):
                 ),
             ),
         )
-
-        return page
