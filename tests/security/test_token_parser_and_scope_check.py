@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     prom.reset_prom_registry()
     app.state.context = mocking.make_context()
     app.state.context.env["JWT_AUDIENCE"] = "register_your_data"
-    app.state.context.key_store.add_keys_from_dict(JWKS_KEYS)
+    app.state.context.key_store.add_keys_from_dict(JWKS_KEYS)  # type: ignore[unused-ignore]
 
     yield
 
