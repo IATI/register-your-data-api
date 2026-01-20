@@ -7,7 +7,7 @@ from typing import AsyncIterator
 import prometheus_client
 from fastapi import FastAPI
 
-import register_your_data_api.exceptions
+import register_your_data_api.exception_handlers
 import register_your_data_api.util as util
 from register_your_data_api.routers import datasets, discoverable_reporting_orgs, misc, reporting_orgs, users
 
@@ -34,7 +34,7 @@ def add_routers_and_general_exception_handling(app: FastAPI) -> None:
     app.include_router(datasets.router)
     app.include_router(users.router)
     app.include_router(misc.router)
-    register_your_data_api.exceptions.add_exception_handlers(app)
+    register_your_data_api.exception_handlers.add_exception_handlers(app)
 
 
 app = FastAPI(title="Register Your Data", lifespan=prod_lifespan, redirect_slashes=False)
