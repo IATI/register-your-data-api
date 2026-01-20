@@ -1,6 +1,7 @@
 from typing import Any
 
 import fastapi
+import fastapi.security.utils
 import jwt
 import starlette.requests
 from fastapi import Depends

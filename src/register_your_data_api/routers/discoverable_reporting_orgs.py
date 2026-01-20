@@ -1,7 +1,7 @@
 """Implementation for /discoverable-reporting-orgs end point"""
 
 import fastapi
-import starlette
+import starlette.requests
 from fastapi import Security
 from libsuitecrm import Filter, SuiteCRM  # type: ignore
 

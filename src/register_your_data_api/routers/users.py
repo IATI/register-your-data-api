@@ -4,7 +4,7 @@ import uuid
 from typing import Any, Callable
 
 import fastapi
-import starlette
+import starlette.requests
 from fastapi import Depends, Security
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse

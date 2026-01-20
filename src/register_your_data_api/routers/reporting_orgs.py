@@ -4,7 +4,7 @@ import uuid
 from typing import Any, Callable
 
 import fastapi
-import starlette
+import starlette.requests
 from fastapi import Depends, Security
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
@@ -371,7 +371,7 @@ def delete_reporting_org(
     # 1. Query SuiteCRM to check that the reporting_org exists. We just fetch the item, because
     # we need to update it later on, and we need to know what its current state is for undo purposes.
     filters = Filter()
-    filters.equal("id", org_id)
+    filters.equal("id", str(org_id))
     crm_reporting_org = crm.get_records(
         "Accounts",
         page_number=1,
