@@ -39,6 +39,7 @@ from ..data_handling.data_schemas import (
     UserReportingOrgRelation,
     UserReportingOrgRelationSingleResponse,
 )
+from ..exception_handlers import format_log_msg
 from ..response_schemas import PaginatedResultsPage
 from ..util import Context
 from ..utilities import assert_precondition_met, check_crm_record_exists, get_num_crm_records, perform_undo_actions
@@ -76,7 +77,7 @@ def get_reporting_orgs(
             f"Please try again later, or contact IATI Support quoting error id: {error_id}"
         )
         context.app_logger.error(
-            f"Error: error id: {error_id} - user id: {user.user_id_crm} - GET /reporting-orgs - Problem when fetching "
+            f"error id: {error_id} - user id: {user.user_id_crm} - GET /reporting-orgs - Problem when fetching "
             "the list of reporting organisations for this user from SuiteCRM. "
             f"Details: {str(e)}"
         )
@@ -91,7 +92,7 @@ def get_reporting_orgs(
 
         if role_for_org is None:
             context.app_logger.info(
-                f"Info: user id: {user.user_id_crm} - GET /reporting-orgs - user is associated with organisation "
+                f"user id: {user.user_id_crm} - GET /reporting-orgs - user is associated with organisation "
                 f"{reporting_org_from_suitecrm["id"]} in the CRM but has no role for that organisation in the FGA DB. "
                 "Organisation was omitted from the list returned to the user."
             )
@@ -136,16 +137,17 @@ def get_reporting_org_detail(
 
     context: Context = request.app.state.context
 
-    if not user.validator.user_can_read_reporting_org(org_id):
-        context.audit_logger.error(
-            f"Request to get reporting org details for org id: {org_id} "
-            f"by unauthorised user id: {user.user_id_crm}"
-        )
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_403_FORBIDDEN,
-            detail="There is a problem with your credentials.  If this persists please report "
-            "error to the provider of the tool you are using to access the IATI Registry.",
-        )
+    assert_precondition_met(
+        context,
+        user,
+        condition_func=lambda: user.validator.user_can_read_reporting_org(org_id),
+        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+        audit_log_msg=(f"Request to get reporting org details for org id: {org_id} by unauthorised user"),
+        public_msg=(
+            "There is a problem with your credentials.  If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry."
+        ),
+    )
 
     filters = Filter()
     filters.equal("id", str(org_id))
@@ -157,11 +159,18 @@ def get_reporting_org_detail(
 
     crm_reporting_orgs = crm.get_records("Accounts", page_number=1, page_size=10, fields=fields, filters=filters)
 
-    if len(crm_reporting_orgs["data"]) == 0:
-        raise HTTPException(
-            status_code=fastapi.status.HTTP_404_NOT_FOUND,
-            detail=f"There is no organisation with ID {str(org_id)} in the Registry.",
-        )
+    # Note: in the standard run of things, 404s won't be returned for non-existent orgs, becuase the authorisation
+    # check above will fail first.  However, in case of misconfiguration of user roles in FGA, it's possible that
+    # a user could have a role for an org that doesn't exist or isn't discoverable, so we handle that here. We don't
+    # run this check first to avoid making unnecessary CRM calls in the majority of cases.
+    assert_precondition_met(
+        context,
+        user,
+        condition_func=lambda: len(crm_reporting_orgs["data"]) > 0,
+        status_code=fastapi.status.HTTP_404_NOT_FOUND,
+        audit_log_msg=(f"Request to get reporting org details failed for org id: {org_id} as it doesn't exist"),
+        public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
+    )
 
     reporting_org = get_reporting_org_meta_from_suitecrm_response(crm_reporting_orgs["data"][0]["attributes"])
 
@@ -189,6 +198,7 @@ def create_reporting_org(
 
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: user.validator.user_can_create_reporting_org(),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         audit_log_msg=(f"Request to create reporting org by unauthorised user id: {user.user_id_crm}"),
@@ -205,18 +215,19 @@ def create_reporting_org(
     # Check that the short name is unique
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: get_num_crm_records(
             crm, "Accounts", {"iati_short_name": reporting_org.short_name, "iati_registry_discoverable": 1}
         )
         == 0,
         status_code=fastapi.status.HTTP_409_CONFLICT,
         audit_log_msg=(
-            f"Request to create reporting org by user id: {user.user_id_crm} "
-            f"with non-unique short name: {reporting_org.short_name}"
+            f"Request to create reporting org failed because the specified short name '{reporting_org.short_name}' "
+            "is already in use."
         ),
         public_msg=(
-            "Unable to create reporting org as there is already a reporting org with short_name "
-            f"'{reporting_org.short_name}' in the Registry."
+            f"Request to create reporting org failed because the specified short name '{reporting_org.short_name}' "
+            "is already in use."
         ),
     )
 
@@ -279,6 +290,12 @@ def create_reporting_org(
         reporting_org_actions=[],
     )
 
+    context.audit_logger.info(
+        format_log_msg(
+            request, user, f"Created reporting org with id: {suitecrm_reporting_org['id']}", include_client_id=True
+        )
+    )
+
     return UserReportingOrgRelationSingleResponse(status="success", error=None, data=user_reporting_org)
 
 
@@ -338,6 +355,10 @@ def update_reporting_org(
         reporting_org_actions=get_reporting_org_actions(crm, str(org_id)) if include_actions == "yes" else [],
     )
 
+    context.audit_logger.info(
+        format_log_msg(request, user, f"Updated reporting org with id: {str(org_id)}", include_client_id=True)
+    )
+
     return UserReportingOrgRelationSingleResponse(status="success", error=None, data=user_reporting_org_relation)
 
 
@@ -354,6 +375,7 @@ def delete_reporting_org(
     # 1. Check that the user has permissions to delete (mark as not on RYD) the reporting org
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: user.validator.user_can_delete_reporting_org(org_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         audit_log_msg=(
@@ -382,6 +404,7 @@ def delete_reporting_org(
 
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: len(crm_reporting_org["data"]) == 1,
         status_code=fastapi.status.HTTP_404_NOT_FOUND,
         public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
@@ -430,6 +453,10 @@ def delete_reporting_org(
             fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"There was a problem deleting the reporting org. Error id: {error_trace_id}",
         )
+
+    context.audit_logger.info(
+        format_log_msg(request, user, f"Deleted reporting org with id: {str(org_id)}", include_client_id=True)
+    )
 
     return fastapi.responses.JSONResponse({"status": "success", "data": None, "error": None})
 
@@ -524,8 +551,10 @@ def get_reporting_org_datasets(
 
     context: Context = request.app.state.context
 
+    # 1. Check that the user has permissions to read datasets for the reporting org
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: user.validator.user_can_read_reporting_org_datasets(org_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         audit_log_msg=(
@@ -540,15 +569,16 @@ def get_reporting_org_datasets(
 
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
-    # 1. Check that the Reporting Org exists in the CRM
+    # 2. Check that the Reporting Org exists in the CRM
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
         status_code=fastapi.status.HTTP_404_NOT_FOUND,
         public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
     )
 
-    # 2. Fetch the datasets
+    # 3. Fetch the datasets
     filters = Filter().equal("iati_dataset_owner_org_id", str(org_id))
     datasets_from_suitecrm = crm.get_records(
         "IATI_Datasets",
@@ -559,7 +589,7 @@ def get_reporting_org_datasets(
         sort_field="name",
     )
 
-    # 3. SuiteCRM doesn't tell us the total number of records, so we set page size = 1 and make a request
+    # 4. SuiteCRM doesn't tell us the total number of records, so we set page size = 1 and make a request
     total_records_resp = crm.get_records("IATI_Datasets", filters=filters, fields=["id"], page_number=1, page_size=1)
     total_records = total_records_resp.get("meta", {}).get("total-pages", 1)
 

@@ -119,6 +119,7 @@ def update_user_role_in_reporting_org(
     # 1. Check if the requesting user has permission to update roles for this org
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: user.validator.user_can_modify_user_roles_for_reporting_org(org_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         public_msg=(
@@ -137,6 +138,7 @@ def update_user_role_in_reporting_org(
     # 2. Check that the target user exists in CRM
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
         public_msg=f"There is no user with ID {str(user_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -152,6 +154,7 @@ def update_user_role_in_reporting_org(
     # 4. Check that the reporting org exists in CRM
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
         public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -166,6 +169,7 @@ def update_user_role_in_reporting_org(
     # in the FGA database, it will try to create them, but this must not be allowed for superadmins
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: not context.fine_grained_auth_provider.is_user_a_superadmin(user_id),
         public_msg=f"User id: {user_id} cannot be given a role in no organisation with ID {str(org_id)}.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -253,6 +257,7 @@ def remove_user_from_reporting_org(
     # 1. Check if the requesting user has permission to update roles for this org
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: user.validator.user_can_modify_user_roles_for_reporting_org(org_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         public_msg=(
@@ -271,6 +276,7 @@ def remove_user_from_reporting_org(
     # 2. Check that the target user exists in CRM
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
         public_msg=f"There is no user with ID {str(user_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -283,6 +289,7 @@ def remove_user_from_reporting_org(
     # 3. Check that the reporting org exists in CRM
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
         public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -296,6 +303,7 @@ def remove_user_from_reporting_org(
 
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: user_role_for_org is not None,
         public_msg=f"User id: {user_id} has no role in organisation with id: {str(org_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
