@@ -398,10 +398,6 @@ def delete_reporting_org(
         # 2. Set iati_registry_approved and iati_registry_discoverable to 0
         crm.update_record("Accounts", str(org_id), {"iati_registry_approved": "0", "iati_registry_discoverable": "0"})
 
-        # TODO: 2b. Set iati_registry_discoverable to False when that new field is
-        # available on SuiteCRM.
-        crm.update_record("Accounts", str(org_id), {"iati_registry_approved": False})
-
         if crm_reporting_org["data"][0].get("attributes", {}).get("iati_registry_approved") is True:
             # Only need to add undo action if the field was previously True
             undo_actions.append(
