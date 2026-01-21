@@ -1,14 +1,16 @@
 import uuid
 from typing import Any, Callable
 
-import fastapi
 from libsuitecrm import Filter, SuiteCRM  # type: ignore
 
+from .auth.models import UserAndCredentials
+from .exceptions import RYDUserException
 from .util import Context
 
 
 def assert_precondition_met(
     context: Context,
+    user: UserAndCredentials,
     condition_func: Callable[[], bool],
     public_msg: str,
     status_code: int,
@@ -19,24 +21,35 @@ def assert_precondition_met(
 
     Parameters
     ----------
+    context : Context
+        The application context
+    user : UserAndCredentials
+        The user and details about their credentials performing the action
     condition_func : Callable[[], bool]
         A function that returns True if the precondition is met
-    log_msg : str
-        The message to include in the logs if the precondition is not met
     public_msg : str
         The message to include in the exception if the precondition is not met
+    status_code : int
+        The HTTP status code to include in the exception if the precondition is not met
+    app_log_msg : str | None, optional
+        The application log message to include in the exception if the precondition is not met, by default None
+    audit_log_msg : str | None, optional
+        The audit log message to include in the exception if the precondition is not met, by
 
     Raises
     ------
-    Exception
+    RYDUserException
         If the precondition is not met
     """
     if not condition_func():
-        if app_log_msg is not None:
-            context.app_logger.error(app_log_msg)
-        if audit_log_msg is not None:
-            context.audit_logger.error(audit_log_msg)
-        raise fastapi.HTTPException(status_code=status_code, detail=public_msg)
+
+        raise RYDUserException(
+            user=user,
+            status_code=status_code,
+            app_msg=app_log_msg,
+            audit_msg=audit_log_msg,
+            public_msg=public_msg,
+        )
 
 
 def find_item_in_suitecrm_response(
