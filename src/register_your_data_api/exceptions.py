@@ -1,72 +1,25 @@
-import fastapi
-import fastapi.responses
-import starlette.exceptions
-import starlette.requests
-from fastapi.exceptions import RequestValidationError
-
-from .util import Context  # noqa: F401
+from .auth.models import UserAndCredentials
 
 
-def add_exception_handlers(app: fastapi.FastAPI) -> None:
-    """Add custom exception handlers to FastAPI app instance
+class RYDException(Exception):
+    """Base class for all app errors."""
 
-    Parameters
-    ----------
-    app : fastapi.FastAPI
-    """
+    pass
 
-    @app.exception_handler(starlette.exceptions.HTTPException)
-    async def http_exception_handler(
-        request: starlette.requests.Request, exc: starlette.exceptions.HTTPException
-    ) -> fastapi.responses.JSONResponse:
-        """Exception handler for catching HTTP Exceptions and returning formatted JSON response
 
-        Parameters
-        ----------
-        request : starlette.requests.Request
-            Request that was processing when the exception occurred.
-        exc : starlette.exceptions.HTTPException
-            Exception that was raised.
+class RYDUserException(RYDException):
+    """Base class for all app errors that occur after the user has been authenticated."""
 
-        Returns
-        -------
-        fastapi.responses.JSONResponse
-            Formatted JSON response
-        """
-        return fastapi.responses.JSONResponse(
-            {"status": "failed", "data": None, "error": {"status_code": exc.status_code, "error_msg": exc.detail}},
-            status_code=exc.status_code,
-        )
-
-    @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(
-        request: starlette.requests.Request, exc: RequestValidationError
-    ) -> fastapi.responses.JSONResponse:
-
-        context: Context = request.app.state.context
-
-        context.app_logger.warning(f"Validation error: {exc} for request: {request.url}")
-
-        msg = "Data validation error: "
-
-        msg += " ".join([f"Field '{err['loc'][-1]}': {err['msg']}." for err in exc.errors()])
-
-        return fastapi.responses.JSONResponse(
-            {"status": "failed", "data": None, "error": {"status_code": 400, "error_msg": msg}},
-            status_code=400,
-        )
-
-    @app.exception_handler(Exception)
-    async def unhandled_exception_handler(
-        request: starlette.requests.Request, exc: Exception
-    ) -> fastapi.responses.JSONResponse:
-        """Catches all unhandled exceptions and returns a generic 500 server error with a simple error message"""
-
-        context = request.app.state.context  # type: Context
-
-        context.app_logger.error(f"An unhandled exception occurred: {exc}", exc_info=True)
-
-        return fastapi.responses.JSONResponse(
-            {"status": "failed", "data": None, "error": {"status_code": 500, "error_msg": "Internal Server Error"}},
-            status_code=500,
-        )
+    def __init__(
+        self,
+        user: UserAndCredentials,
+        status_code: int,
+        app_msg: str | None,
+        audit_msg: str | None,
+        public_msg: str | None,
+    ):
+        self.user: UserAndCredentials = user
+        self.status_code: int = status_code
+        self.app_msg: str | None = app_msg
+        self.audit_msg: str | None = audit_msg
+        self.public_msg: str | None = public_msg

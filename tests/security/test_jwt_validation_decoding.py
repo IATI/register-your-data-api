@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
 import register_your_data_api.auth.authn as authn
-import register_your_data_api.exceptions
+import register_your_data_api.exception_handlers
 import tests.helpers.keys
 import tests.helpers.logs as logs
 import tests.helpers.mocking as mocking
@@ -27,13 +27,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     prom.reset_prom_registry()
     app.state.context = mocking.make_context()
     app.state.context.env["JWT_AUDIENCE"] = "some_audience"
-    app.state.context.key_store.add_keys_from_dict(JWKS_KEYS)
+    app.state.context.key_store.add_keys_from_dict(JWKS_KEYS)  # type: ignore[unused-ignore]
 
     yield
 
 
 app = FastAPI(title="Register Your Data", lifespan=lifespan)
-register_your_data_api.exceptions.add_exception_handlers(app)
+register_your_data_api.exception_handlers.add_exception_handlers(app)
 
 
 @app.get("/test_validate_and_decode_token")
