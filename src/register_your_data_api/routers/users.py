@@ -47,30 +47,26 @@ def add_user_to_reporting_org(
 
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: user_id_to_add_as_str == user.user_id_crm,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-        public_msg=("You cannot request a different user be associated with a reporting organisation."),
-        app_log_msg=(
-            f"Error: - user id: {user.user_id_crm} - POST /{user_id}/reporting-org - Request to associate user "
-            f"{user_id_to_add_as_str} with reporting org id: {payload.oid} by a different user with "
-            f"id: {user.user_id_crm}"
-        ),
+        public_msg=("You cannot request a different user to join a reporting organisation."),
         audit_log_msg=(
-            f"Error: - user id: {user.user_id_crm} - POST /{user_id}/reporting-org - Request to associate user "
-            f"{user_id_to_add_as_str} with reporting org id: {payload.oid} by a different user with "
-            f"id: {user.user_id_crm}"
+            f"Request to join user id: {user_id_to_add_as_str} to reporting org id: {payload.oid} "
+            f"by a different user."
         ),
     )
 
-    # Superadmins shouldn't be allowed to request association with any organisations
+    # Superadmins shouldn't be allowed to join any organisations
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: not user.validator.is_superadmin,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-        public_msg=("Superadmins cannot associate themselves with organisations."),
+        public_msg=("Superadmins cannot join organisations."),
         audit_log_msg=(
-            f"Error: - user id: {user.user_id_crm} - POST /{user_id}/reporting-org - Request by a superadmin to "
-            f"associate their account with a reporting org"
+            f"Request by superadmin to join reporting org id: {payload.oid} "
+            "but superadmins cannot join organisations."
         ),
     )
 
@@ -80,24 +76,25 @@ def add_user_to_reporting_org(
     # Check the reporting org exists
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: check_crm_record_exists(crm, "Accounts", payload.oid),
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
         public_msg=(f"There is no organisation with ID {payload.oid} in the Registry."),
-        app_log_msg=(
-            f"Error: - user id: {user.user_id_crm} - POST /{user_id}/reporting-org - Request by a user to "
-            f"associate their account with a non-existing reporting org"
+        audit_log_msg=(
+            f"Request by user to join a non-existing reporting org with id: {payload.oid}."
         ),
     )
 
     # Check the user isn't already a member of that organisation
     assert_precondition_met(
         context,
+        user,
         condition_func=lambda: user.validator.get_user_role_for_reporting_org(payload.oid) is None,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
         public_msg=(f"You are already associated with that reporting org id: {payload.oid}."),
-        app_log_msg=(
-            f"Error: - user id: {user.user_id_crm} - POST /{user_id}/reporting-org - Request by a user to "
-            f"join reporting org id: {payload.oid}, but they are already a member of that organisation"
+        audit_log_msg=(
+            f"Request by user to join reporting org id: {payload.oid} "
+            "but they are already a member of that organisation."
         ),
     )
 
@@ -172,7 +169,7 @@ def update_user_role_in_reporting_org(
         condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
         public_msg=f"There is no user with ID {str(user_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-        app_log_msg=(
+        audit_log_msg=(
             f"User with id: {user.user_id_crm} attempted to change user id: {user_id}'s role "
             f"in organisation with id: {org_id} but user with id: {user_id} does not exist in CRM."
         ),
@@ -188,7 +185,7 @@ def update_user_role_in_reporting_org(
         condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
         public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-        app_log_msg=(
+        audit_log_msg=(
             f"User with id: {user.user_id_crm} attempted to change user id: {user_id}'s role "
             f"in organisation with id: {org_id} but organisation with id {org_id} does not exist in CRM."
         ),
@@ -203,7 +200,7 @@ def update_user_role_in_reporting_org(
         condition_func=lambda: not context.fine_grained_auth_provider.is_user_a_superadmin(user_id),
         public_msg=f"User id: {user_id} cannot be given a role in no organisation with ID {str(org_id)}.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-        app_log_msg=(
+        audit_log_msg=(
             f"User with id: {user.user_id_crm} attempted to change user id: {user_id}'s role "
             f"in organisation with id: {org_id} but user with id: {user_id} is a superadmin."
         ),
@@ -310,7 +307,7 @@ def remove_user_from_reporting_org(
         condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
         public_msg=f"There is no user with ID {str(user_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-        app_log_msg=(
+        audit_log_msg=(
             f"User with id: {user.user_id_crm} attempted to remove user id: {user_id}'s role "
             f"in organisation with id: {org_id} but user with id: {user_id} does not exist in CRM."
         ),
@@ -323,7 +320,7 @@ def remove_user_from_reporting_org(
         condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
         public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-        app_log_msg=(
+        audit_log_msg=(
             f"User with id: {user.user_id_crm} attempted to change user id: {user_id}'s role "
             f"in organisation with id: {org_id} but organisation with id {org_id} does not exist in CRM."
         ),
