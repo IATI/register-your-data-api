@@ -45,10 +45,11 @@ cryptography==45.0.5
     # via register-your-data-api (pyproject.toml)
 dnspython==2.7.0
     # via email-validator
-email-validator==2.2.0
+email-validator==2.3.0
     # via
     #   fastapi
     #   pydantic
+    #   register-your-data-api (pyproject.toml)
 fastapi==0.116.0
     # via register-your-data-api (pyproject.toml)
 fastapi-cli==0.0.8
