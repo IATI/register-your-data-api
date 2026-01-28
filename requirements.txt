@@ -13,6 +13,10 @@ anyio==4.9.0
     #   httpx
     #   starlette
     #   watchfiles
+azure-communication-email==1.1.0
+    # via register-your-data-api (pyproject.toml)
+azure-core==1.38.0
+    # via azure-communication-email
 certifi==2025.6.15
     # via
     #   httpcore
@@ -63,6 +67,8 @@ idna==3.10
     #   email-validator
     #   httpx
     #   requests
+isodate==0.7.2
+    # via azure-communication-email
 jinja2==3.1.6
     # via
     #   fastapi
@@ -112,6 +118,7 @@ pyyaml==6.0.2
     # via uvicorn
 requests==2.32.4
     # via
+    #   azure-core
     #   libsuitecrm
     #   register-your-data-api (pyproject.toml)
     #   requests-oauthlib
@@ -152,6 +159,8 @@ typing-extensions==4.14.1
     # via
     #   alembic
     #   anyio
+    #   azure-communication-email
+    #   azure-core
     #   fastapi
     #   psycopg
     #   pydantic
