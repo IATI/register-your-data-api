@@ -26,6 +26,11 @@ class FineGrainedAuthorisationProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_admin_users_for_org(self, org: UUID) -> list[FineGrainedAuthorisationRoleAssociation]:
+        """Returns a list of all the admin users for a specific organisation"""
+        raise NotImplementedError
+
+    @abstractmethod
     def is_user_a_superadmin(self, user: UUID) -> bool:
         """Returns True if the user is a superadmin, else False"""
         raise NotImplementedError
