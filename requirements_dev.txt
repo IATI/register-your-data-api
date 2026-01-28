@@ -161,6 +161,8 @@ pyproject-hooks==1.2.0
     #   pip-tools
 pytest==8.4.1
     # via register-your-data-api (pyproject.toml)
+pytest-watcher==0.6.3
+    # via register-your-data-api (pyproject.toml)
 python-dotenv==1.1.1
     # via
     #   register-your-data-api (pyproject.toml)
@@ -241,6 +243,8 @@ uvicorn==0.35.0
     #   fastapi-cloud-cli
 uvloop==0.21.0
     # via uvicorn
+watchdog==6.0.0
+    # via pytest-watcher
 watchfiles==1.1.0
     # via uvicorn
 websockets==15.0.1
