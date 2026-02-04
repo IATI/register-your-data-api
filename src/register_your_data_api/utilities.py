@@ -120,7 +120,10 @@ def get_num_crm_records(crm: SuiteCRM, module: str, field_value_pairs: dict[str,
 
 
 def perform_undo_actions(
-    context: Context, undo_actions: list[tuple[str, Callable[[], Any]]], func_name: str
+    context: Context,
+    undo_actions: list[tuple[str, Callable[[], Any]]],
+    func_name: str,
+    trace_id: uuid.UUID | None = None,
 ) -> uuid.UUID:
     """Runs the set of undo actions
 
@@ -139,7 +142,7 @@ def perform_undo_actions(
         The error trace ID for the logged exception
     """
 
-    error_id = uuid.uuid4()
+    error_id = uuid.uuid4() if trace_id is None else trace_id
 
     context.app_logger.exception(f"Unexpected error in {func_name}. Error trace id: {error_id}")
 
