@@ -1,4 +1,5 @@
 import re
+import uuid
 from typing import Annotated, Literal
 
 import pydantic
@@ -18,7 +19,12 @@ class BaseResponse(pydantic.BaseModel):
 
 
 class OrganisationId(pydantic.BaseModel):
-    oid: str
+    oid: uuid.UUID
+
+    @pydantic.computed_field  # type: ignore[prop-decorator]
+    @property
+    def oid_str(self) -> str:
+        return str(self.oid)
 
 
 class CRMUser(pydantic.BaseModel):
