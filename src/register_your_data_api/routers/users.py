@@ -5,11 +5,13 @@ from typing import Any, Callable
 
 import fastapi
 import starlette.requests
-from fastapi import Depends, Security
+from fastapi import BackgroundTasks, Depends, Security
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
-from libsuitecrm import SuiteCRM  # type: ignore
+from libsuitecrm import Filter, SuiteCRM  # type: ignore
 
+from register_your_data_api import email_generator
+from register_your_data_api.background_tasks import ActionType, enqueue_task
 from register_your_data_api.dependencies import get_suitecrm_audit_headers
 
 from ..auth import authz
@@ -20,6 +22,7 @@ from ..data_handling.data_schemas import (
     OrganisationId,
     UserRoleUpdateModel,
 )
+from ..exception_handlers import format_log_msg
 from ..util import Context
 from ..utilities import (
     assert_precondition_met,
@@ -36,12 +39,15 @@ def add_user_to_reporting_org(
     user_id: uuid.UUID,
     payload: OrganisationId,
     request: starlette.requests.Request,
+    background_tasks: BackgroundTasks,
     user: UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:user"]),
     suitecrm_audit_headers: dict[str, str] = Depends(get_suitecrm_audit_headers),
 ) -> JSONResponse:
     """Handles a request by the logged in user to be associated with the specified reporting_org"""
 
     context: Context = request.app.state.context
+
+    trace_id: uuid.UUID = uuid.uuid4()
 
     user_id_to_add_as_str = str(user_id)
 
@@ -52,7 +58,7 @@ def add_user_to_reporting_org(
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
         public_msg=("You cannot request a different user to join a reporting organisation."),
         audit_log_msg=(
-            f"Request to join user id: {user_id_to_add_as_str} to reporting org id: {payload.oid} "
+            f"Request to join user id: {user_id_to_add_as_str} to reporting org id: {payload.oid_str} "
             f"by a different user."
         ),
     )
@@ -65,7 +71,7 @@ def add_user_to_reporting_org(
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
         public_msg=("Superadmins cannot join organisations."),
         audit_log_msg=(
-            f"Request by superadmin to join reporting org id: {payload.oid} "
+            f"Request by superadmin to join reporting org id: {payload.oid_str} "
             "but superadmins cannot join organisations."
         ),
     )
@@ -73,17 +79,19 @@ def add_user_to_reporting_org(
     # Query SuiteCRM to check that the reporting_org exists
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
+    org_response = crm.get_records("Accounts", filters=Filter().equal("id", payload.oid_str), fields=["id", "name"])
+
     # Check the reporting org exists
     assert_precondition_met(
         context,
         user,
-        condition_func=lambda: check_crm_record_exists(crm, "Accounts", payload.oid),
+        condition_func=lambda: len(org_response["data"]) == 1,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-        public_msg=(f"There is no organisation with ID {payload.oid} in the Registry."),
-        audit_log_msg=(
-            f"Request by user to join a non-existing reporting org with id: {payload.oid}."
-        ),
+        public_msg=(f"There is no organisation with ID {payload.oid_str} in the Registry."),
+        audit_log_msg=(f"Request by user to join a non-existing reporting org with id: {payload.oid_str}."),
     )
+
+    reporting_org_from_suitecrm = org_response["data"][0]
 
     # Check the user isn't already a member of that organisation
     assert_precondition_met(
@@ -91,41 +99,124 @@ def add_user_to_reporting_org(
         user,
         condition_func=lambda: user.validator.get_user_role_for_reporting_org(payload.oid) is None,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
-        public_msg=(f"You are already associated with that reporting org id: {payload.oid}."),
+        public_msg=(f"You are already associated with that reporting org id: {payload.oid_str}."),
         audit_log_msg=(
-            f"Request by user to join reporting org id: {payload.oid} "
+            f"Request by user to join reporting org id: {payload.oid_str} "
             "but they are already a member of that organisation."
         ),
     )
+
+    user_response = crm.get_records(
+        "Contacts", filters=Filter().equal("id", user.user_id_crm), fields=["id", "email1", "last_name"]
+    )
+
+    user_requesting_to_join = user_response["data"][0]
 
     undo_actions: list[tuple[str, Callable[[], Any]]] = []
 
     try:
         # 1. Create a relationship between the current user (Contacts) and the
         crm.create_relationship(
-            "Accounts", payload.oid, "contacts", "Contacts", user.user_id_crm, headers=suitecrm_audit_headers
+            "Accounts", payload.oid_str, "contacts", "Contacts", user.user_id_crm, headers=suitecrm_audit_headers
         )
-        undo_msg = f"delete relationship between organisation id: {payload.oid} and user id: {user.user_id_crm}"
+        undo_msg = f"delete relationship between organisation id: {payload.oid_str} and user id: {user.user_id_crm}"
         undo_func: Callable[[], Any] = lambda: crm.delete_relationship(
-            "Accounts", payload.oid, "contacts", user.user_id_crm, headers=suitecrm_audit_headers
+            "Accounts", payload.oid_str, "contacts", user.user_id_crm, headers=suitecrm_audit_headers
         )
         undo_actions.append((undo_msg, undo_func))
+
+        context.audit_logger.info(
+            format_log_msg(
+                request,
+                user,
+                (
+                    f"trace id: {trace_id} - request to join organisation id: "
+                    f"{payload.oid_str} - crm relationship created."
+                ),
+                include_client_id=True,
+            )
+        )
 
         # 2. Create a fine-grained authorisation for this user to be CONTRIBUTOR_PENDING of new reporting_org
         user_reporting_org_role = fga_models.FineGrainedAuthorisationRoleAssociation(
             user=uuid.UUID(user.user_id_crm),
-            reporting_org=uuid.UUID(payload.oid),
+            reporting_org=payload.oid,
             role=fga_models.FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING,
         )
         context.fine_grained_auth_provider.create_user_fine_grained_authorisation(user_reporting_org_role)
 
+        context.audit_logger.info(
+            format_log_msg(
+                request,
+                user,
+                (
+                    f"trace id: {trace_id} - request to join organisation id: "
+                    f"{payload.oid_str} - entry in FGA DB created."
+                ),
+                include_client_id=True,
+            )
+        )
+
+        # 3. Add a send-email task to the background task processor for each organisation admin
+        # - lookup the organisation admins
+        # - read the admins names and email addresses from SuiteCRM
+        # - enqueue the email send task for each admin
+        org_admins = context.fine_grained_auth_provider.get_admin_users_for_org(payload.oid)
+
+        for org_admin in org_admins:
+            admin_from_suitecrm = crm.get_records(
+                "Contacts", filters=Filter().equal("id", str(org_admin.user)), fields=["id", "email1", "last_name"]
+            )
+
+            enqueue_task(
+                background_tasks,
+                ActionType.SEND_EMAIL,
+                email_sender=context.email_sender,
+                trace_id=str(trace_id),
+                email=context.email_generator.generate_email_content(
+                    email_generator.EmailType.USER_REQUESTED_TO_JOIN_ORG,
+                    context.email_sender_ryd_from_name,
+                    context.email_sender_ryd_from_email,
+                    admin_from_suitecrm["data"][0]["attributes"]["last_name"],
+                    admin_from_suitecrm["data"][0]["attributes"]["email1"],
+                    org_id=payload.oid_str,
+                    org_name=reporting_org_from_suitecrm["attributes"]["name"],
+                    user_requesting_join_email=user_requesting_to_join["attributes"]["email1"],
+                    user_requesting_join_id=user.user_id_crm,
+                    user_requesting_join_name=user_requesting_to_join["attributes"]["last_name"],
+                    site_url=context.iati_account_instance_base_url,
+                ),
+            )
+
+        if len(org_admins) == 0:
+            context.app_logger.error(
+                format_log_msg(
+                    request,
+                    user,
+                    (
+                        f"trace id: {trace_id} - User requested to join organisation id: {payload.oid_str} and "
+                        "their request has been processed but no admins were found for this organisation so no email "
+                        "notifications were sent."
+                    ),
+                )
+            )
+
     except Exception:
-        error_trace_id: uuid.UUID = perform_undo_actions(context, undo_actions, "add_user_to_reporting_org")
+        perform_undo_actions(context, undo_actions, "add_user_to_reporting_org", trace_id=trace_id)
 
         raise HTTPException(
             fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"There was a problem requesting access to the organisation. Error id: {error_trace_id}",
+            detail=f"There was a problem requesting access to the organisation. Error id: {trace_id}",
         )
+
+    context.audit_logger.info(
+        format_log_msg(
+            request,
+            user,
+            (f"trace id: {trace_id} - request to join organisation id: {payload.oid_str} succeeded."),
+            include_client_id=True,
+        )
+    )
 
     return JSONResponse({"data": None, "error": None, "status": "success"}, 200)
 
