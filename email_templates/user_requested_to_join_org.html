@@ -1,0 +1,23 @@
+<p>
+Dear {{ to_name }},
+</p>
+<p>
+A new user {{ user_requesting_join_name }}, with email address {{user_requesting_join_email }}, has requested to join your organisation {{ org_name }}.
+</p>
+
+<p>As an admin user for this organisation, please approve or reject this request in IATI Account.</p>
+
+<p>
+You can do this by:
+<ul>
+<li>Signing in to IATI Account: <a href="{{ site_url }}">{{ site_url }}</a></li>
+<li>Viewing your organisation: <a href="{{ site_url }}/en/data/organisation/{{ org_id }}"></a>{{ site_url }}/en/data/organisation/{{ org_id }}</a></li>
+<li>Navigating to the "Users" table at the bottom of your organisation’s page</li>
+<li>Changing the new user's role from 'CONTRIBUTOR' to one of 'ADMIN', 'EDITOR' or 'CONTRIBUTOR'.</li>
+</ul>
+</p>
+<p>If you do not recognise the new user, you can select to remove them from your organisation.</p>
+
+<p>Read more about managing users and role permissions in IATI Account here:
+<a href="https://docs.account.iatistandard.org/en/latest/manage_organisation_users/">https://docs.account.iatistandard.org/en/latest/manage_organisation_users/</a>
+</p>

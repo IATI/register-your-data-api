@@ -1,0 +1,16 @@
+Dear {{ to_name }},
+
+A new user {{ user_requesting_join_name }}, with email address {{user_requesting_join_email }}, has requested to join your organisation {{ org_name }}.
+
+As an admin user for this organisation, please approve or reject this request in IATI Account.
+
+You can do this by:
+
+- Signing in to IATI Account: {{ site_url }}
+- Viewing your organisation: {{ site_url }}/en/data/organisation/{{ org_id }}
+- Navigating to the "Users" table at the bottom of your organisation's page
+- Changing the new user's role from 'CONTRIBUTOR' to one of 'ADMIN', 'EDITOR' or 'CONTRIBUTOR'.
+
+If you do not recognise the new user, you can select to remove them from your organisation.
+
+Read more about managing users and role permissions in IATI Account here: https://docs.account.iatistandard.org/en/latest/manage_organisation_users/

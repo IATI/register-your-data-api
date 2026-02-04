@@ -1,0 +1,16 @@
+Dear IATI Support Team,
+
+A new organisation has been created in the IATI Registry and requires approval.
+
+Organisation Details:
+- Organisation Short name: {{ org_short_name }}
+- Organisation Human readable name: {{ org_human_readable_name }}
+- Organisation ID: {{ org_id }}
+- Organisation Page: {{ site_url }}/en/data/organisation/{{ org_id }}
+
+Created by:
+- User Name: {{ user_name }}
+- User Email: {{ user_email }}
+- User ID: {{ user_id }}
+
+Please review this organisation and approve or reject it as appropriate.
