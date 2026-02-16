@@ -1,6 +1,6 @@
 Dear IATI Support Team,
 
-A new organisation has been created in the IATI Registry and requires approval.
+A new organisation has been created using Register Your Data and requires approval.
 
 Organisation Details:
 - Organisation Short name: {{ org_short_name }}

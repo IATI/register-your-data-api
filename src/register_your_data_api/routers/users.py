@@ -180,7 +180,7 @@ def add_user_to_reporting_org(
                     admin_from_suitecrm["data"][0]["attributes"]["last_name"],
                     admin_from_suitecrm["data"][0]["attributes"]["email1"],
                     org_id=payload.oid_str,
-                    org_name=reporting_org_from_suitecrm["attributes"]["name"],
+                    org_human_readable_name=reporting_org_from_suitecrm["attributes"]["name"],
                     user_requesting_join_email=user_requesting_to_join["attributes"]["email1"],
                     user_requesting_join_id=user.user_id_crm,
                     user_requesting_join_name=user_requesting_to_join["attributes"]["last_name"],

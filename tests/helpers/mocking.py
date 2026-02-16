@@ -309,7 +309,7 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
     test_context._email_address_for_iati_support_approvals = "example@example.com"
     test_context._email_generator = mock.MagicMock()
     test_context._email_sender = mock.MagicMock()
-    test_context._email_sender_ryd_from_name = "IATI Registry"
+    test_context._email_sender_ryd_from_name = "IATI Register Your Data"
     test_context._email_sender_ryd_from_email = "example@example.com"
 
     test_context._iati_account_instance_base_url = "https://account.iatistandard.org"

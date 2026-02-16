@@ -1,4 +1,5 @@
 import functools
+import hashlib
 import inspect
 import logging
 from enum import Enum, auto
@@ -64,19 +65,21 @@ async def send_email_async(email_sender: EmailSender, trace_id: str, email: Emai
         )
         return
 
-    app_logger.debug(f"Sending email to: {email.to_email}")
-    app_logger.debug(
-        "Email content - subject=%s from_name=%s from_email=%s to_name=%s to_email=%s",
-        email.subject,
-        email.from_name,
-        email.from_email,
-        email.to_name,
-        email.to_email,
-    )
+    recipient_email_hashed = hashlib.sha256(email.to_email.encode()).hexdigest()
 
-    email_sender.send(email)
+    app_logger.debug(
+        f"send_email_async() - Sending email to Azure comms service - trace id: {trace_id} - "
+        f"recipient: {recipient_email_hashed}"
+    )
 
     audit_logger.info(
         f"send_email_async() - Sending email to Azure comms service - trace id: {trace_id} - "
         f"recipient: {email.to_email} - subject: {email.subject}"
     )
+    audit_logger.debug(
+        f"send_email_async() - Sending email to Azure comms service - trace id: {trace_id} - "
+        f"recipient: {email.to_email} - subject: {email.subject}"
+        f"recipient name: {email.to_name}"
+    )
+
+    email_sender.send(email)

@@ -20,15 +20,15 @@ def test_generate_email_content_user_requested_to_join_org() -> None:
     generator = EmailGenerator(str(templates_dir))
 
     template_values = {
-        "from_name": "IATI Registry",
+        "from_name": "IATI Register Your Data",
         "from_email": "support@iatistandard.org",
         "to_name": "Alex Admin",
         "to_email": "alex.admin@example.org",
         "user_requesting_join_name": "Sam User",
         "user_requesting_join_email": "sam.user@example.org",
-        "org_name": "Example Org",
+        "org_id": "8aa43b78-bcea-4cef-9113-5bb4f0fa7140",
+        "org_human_readable_name": "Example Org",
         "site_url": "https://account.iatistandard.org",
-        "org_id": "EX-123",
     }
 
     result = generator.generate_email_content(
@@ -59,14 +59,13 @@ def test_generate_email_content_new_org_needs_approval() -> None:
     generator = EmailGenerator(str(templates_dir))
 
     template_values = {
-        "from_name": "IATI Registry",
+        "from_name": "IATI Register Your Data",
         "from_email": "support@iatistandard.org",
         "to_name": "IATI Support Team",
         "to_email": "support@iatistandard.org",
-        "org_name": "Example Org",
         "org_short_name": "example-org",
         "org_human_readable_name": "Example Organisation",
-        "org_id": "EX-123",
+        "org_id": "69626e79-122b-492b-abbe-d7c7dc519329",
         "site_url": "https://account.iatistandard.org",
         "user_name": "Alex Admin",
         "user_email": "alex.admin@example.org",
