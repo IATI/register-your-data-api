@@ -63,6 +63,17 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
 
         return FineGrainedAuthorisationRoleAssociation(**user_role_for_org.model_dump())
 
+    def get_admin_users_for_org(self, org: UUID) -> list[FineGrainedAuthorisationRoleAssociation]:
+        with Session(self._engine) as session:
+            admin_user_db_fgas = session.exec(
+                select(FineGrainedAuthorisationDbModel).where(
+                    (FineGrainedAuthorisationDbModel.reporting_org == org)
+                    & (FineGrainedAuthorisationDbModel.role == FineGrainedAuthorisationRole.ADMIN)
+                )
+            ).all()
+
+        return [FineGrainedAuthorisationRoleAssociation(**db_fga.model_dump()) for db_fga in admin_user_db_fgas]
+
     def is_user_a_superadmin(self, user: UUID) -> bool:
         with Session(self._engine) as session:
             user_superadmin_record = session.exec(

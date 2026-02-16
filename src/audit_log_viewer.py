@@ -108,7 +108,7 @@ def main(use_stdin: bool) -> None:
     context = AuditLogViewerContext(use_stdin, audit_log_path, audit_log_private_key_path)
 
     for line in decrypt_audit_log(context):
-        print(line)
+        print(line, flush=True)
 
 
 if __name__ == "__main__":

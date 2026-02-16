@@ -13,6 +13,10 @@ anyio==4.9.0
     #   httpx
     #   starlette
     #   watchfiles
+azure-communication-email==1.1.0
+    # via register-your-data-api (pyproject.toml)
+azure-core==1.38.0
+    # via azure-communication-email
 bandit==1.8.6
     # via register-your-data-api (pyproject.toml)
 black==25.1.0
@@ -41,10 +45,11 @@ cryptography==45.0.5
     # via register-your-data-api (pyproject.toml)
 dnspython==2.7.0
     # via email-validator
-email-validator==2.2.0
+email-validator==2.3.0
     # via
     #   fastapi
     #   pydantic
+    #   register-your-data-api (pyproject.toml)
 fastapi==0.116.0
     # via register-your-data-api (pyproject.toml)
 fastapi-cli==0.0.8
@@ -83,10 +88,14 @@ idna==3.10
     #   requests
 iniconfig==2.1.0
     # via pytest
+isodate==0.7.2
+    # via azure-communication-email
 isort==6.0.1
     # via register-your-data-api (pyproject.toml)
 jinja2==3.1.6
-    # via fastapi
+    # via
+    #   fastapi
+    #   register-your-data-api (pyproject.toml)
 libsuitecrm @ git+https://github.com/iati/iati-registry-libsuitecrm@v0.5.0
     # via register-your-data-api (pyproject.toml)
 mako==1.3.10
@@ -159,6 +168,8 @@ pyproject-hooks==1.2.0
     #   pip-tools
 pytest==8.4.1
     # via register-your-data-api (pyproject.toml)
+pytest-watcher==0.6.3
+    # via register-your-data-api (pyproject.toml)
 python-dotenv==1.1.1
     # via
     #   register-your-data-api (pyproject.toml)
@@ -171,6 +182,7 @@ pyyaml==6.0.2
     #   uvicorn
 requests==2.32.4
     # via
+    #   azure-core
     #   libsuitecrm
     #   register-your-data-api (pyproject.toml)
     #   requests-oauthlib
@@ -216,6 +228,8 @@ typing-extensions==4.14.1
     # via
     #   alembic
     #   anyio
+    #   azure-communication-email
+    #   azure-core
     #   fastapi
     #   mypy
     #   psycopg
@@ -239,6 +253,8 @@ uvicorn==0.35.0
     #   fastapi-cloud-cli
 uvloop==0.21.0
     # via uvicorn
+watchdog==6.0.0
+    # via pytest-watcher
 watchfiles==1.1.0
     # via uvicorn
 websockets==15.0.1

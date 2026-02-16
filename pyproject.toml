@@ -1,6 +1,6 @@
 [project]
 name = "register-your-data-api"
-version = "0.2.8"
+version = "0.2.9"
 requires-python = ">= 3.12.11"
 readme = "README.md"
 authors = [{name="IATI Secretariat", email="support@iatistandard.org"}]
@@ -9,9 +9,12 @@ description = "API for writing to the IATI Registry"
 
 dependencies = [
     "alembic",
+    "azure-communication-email>=1.0.0,<2.0.0",
     "click",
     "cryptography==45.0.5",
+    "email_validator>=2.3.0,<3.0.0",    
     "fastapi[standard]==0.116.0",
+    "jinja2>=3.1.6,<4.0.0",
     "libsuitecrm @ git+https://github.com/iati/iati-registry-libsuitecrm@v0.5.0",
     "prometheus-client>=0.22.1",
     "pyjwt>=2.10.0",
@@ -32,7 +35,8 @@ dev = [
     "isort",
     "mypy",
     "pip-tools",
-    "pytest"
+    "pytest",
+    "pytest-watcher>=0.6.0,<1.0.0"
 ]
 
 [tool.alembic]

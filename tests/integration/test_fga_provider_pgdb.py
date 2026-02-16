@@ -75,3 +75,46 @@ def test_assignment_of_permissions() -> None:
     perm_check = fga.get_user_fine_grained_permissions(user3)
     assert len(perm_check) == 0
     assert fga.is_user_a_superadmin(user3) is True
+
+
+def test_fga_fetch_admins() -> None:
+    """Simple test of FGA provider DB using SQLite in-memory DB"""
+
+    fga = FineGrainedAuthorisationProviderDb("sqlite:///:memory:")
+    fga.setup()
+    sqlmodel.SQLModel.metadata.create_all(fga._engine)
+
+    u1, u2, u3 = uuid4(), uuid4(), uuid4()
+    o1, o2 = uuid4(), uuid4()
+
+    with sqlmodel.Session(fga._engine) as session:
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=u1, reporting_org=o1, role=FineGrainedAuthorisationRole.EDITOR, id=uuid4()
+            )
+        )
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=u1, reporting_org=o2, role=FineGrainedAuthorisationRole.CONTRIBUTOR, id=uuid4()
+            )
+        )
+
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=u2, reporting_org=o1, role=FineGrainedAuthorisationRole.ADMIN, id=uuid4()
+            )
+        )
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=u3, reporting_org=o1, role=FineGrainedAuthorisationRole.ADMIN, id=uuid4()
+            )
+        )
+        session.commit()
+
+    fga_admins_org_1 = fga.get_admin_users_for_org(o1)
+
+    assert len(fga_admins_org_1) == 2
+
+    fga_admins_org_2 = fga.get_admin_users_for_org(o2)
+
+    assert len(fga_admins_org_2) == 0

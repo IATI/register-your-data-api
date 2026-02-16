@@ -16,5 +16,6 @@ RUN pip install -e .
 
 COPY src/ src
 COPY alembic/ alembic
+COPY email_templates/ email_templates
 
 ENTRYPOINT ["fastapi", "run", "src/main.py", "--port", "8000"]

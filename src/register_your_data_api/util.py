@@ -15,6 +15,8 @@ from register_your_data_api.client_application_details_provider import (
     ClientApplicationDetails,
     ClientApplicationDetailsProvider,
 )
+from register_your_data_api.email_generator import EmailGenerator
+from register_your_data_api.email_sender import AzureEmailSender, EmailSender
 from register_your_data_api.suitecrm_client_factory import SuiteCRMClientFactory
 
 from .audit import EncryptedFormatter
@@ -31,16 +33,22 @@ class Context:
         "APP_LOG_PATH",
         "AUDIT_LOG_PATH",
         "AUDIT_LOG_PUBLIC_KEY_PATH",
-        "JWKS_URI",
-        "PROMETHEUS_PORT",
-        "JWT_AUDIENCE",
-        "FGA_PROVIDER",
-        "FGA_PROVIDER_CONNECTION_STRING",
+        "AZURE_COMMUNICATION_SERVICE_CONNECTION_STRING",
+        "CLIENT_APPLICATION_DETAILS_FILE",
         "DATA_REGISTRY_SUITECRM_API_URL",
         "DATA_REGISTRY_SUITECRM_CLIENT_ID",
         "DATA_REGISTRY_SUITECRM_CLIENT_SECRET",
+        "EMAIL_ADDRESS_FOR_IATI_SUPPORT_APPROVALS",
+        "EMAIL_SENDER_RYD_FROM_NAME",
+        "EMAIL_SENDER_RYD_FROM_EMAIL",
+        "EMAIL_TEMPLATES_DIR",
+        "FGA_PROVIDER",
+        "FGA_PROVIDER_CONNECTION_STRING",
+        "IATI_ACCOUNT_INSTANCE_BASE_URL",
+        "JWKS_URI",
+        "JWT_AUDIENCE",
+        "PROMETHEUS_PORT",
         "USER_CRM_UUID_CONFIG_STRING",
-        "CLIENT_APPLICATION_DETAILS_FILE",
     ]
 
     LOG_LEVELS: Final[dict[str, int]] = {
@@ -61,7 +69,16 @@ class Context:
     _audit_log_fh: TextIO
     _audit_log_file_handler: logging.StreamHandler[TextIO]
 
+    _email_address_for_iati_support_approvals: str
+    _email_generator: EmailGenerator
+    _email_sender_ryd_from_name: str
+    _email_sender_ryd_from_email: str
+    _email_sender: EmailSender
+
     _env: dict[str, Any]
+
+    _iati_account_instance_base_url: str
+
     _LICENCES: dict[str, str]
 
     _prom_metrics: dict[str, Counter | Info | Gauge]
@@ -112,6 +129,28 @@ class Context:
             self._setup_client_application_details_provider()
         except Exception as err:
             self._app_logger.fatal(f"Cannot setup client application details provider ({err})")
+            raise err
+
+        self._email_address_for_iati_support_approvals = self._env["EMAIL_ADDRESS_FOR_IATI_SUPPORT_APPROVALS"]
+
+        self._email_sender_ryd_from_email = self._env["EMAIL_SENDER_RYD_FROM_EMAIL"]
+
+        self._email_sender_ryd_from_name = self._env["EMAIL_SENDER_RYD_FROM_NAME"]
+
+        self._iati_account_instance_base_url = self._env["IATI_ACCOUNT_INSTANCE_BASE_URL"]
+
+        try:
+            self._app_logger.info("Setting up email generator")
+            self._email_generator = EmailGenerator(self._env["EMAIL_TEMPLATES_DIR"])
+        except Exception as err:
+            self._app_logger.fatal(f"Cannot setup email generator ({err})")
+            raise err
+
+        try:
+            self._app_logger.info("Setting up an Azure Communications Service email sender")
+            self._email_sender = AzureEmailSender(self._env["AZURE_COMMUNICATION_SERVICE_CONNECTION_STRING"])
+        except Exception as err:
+            self._app_logger.fatal(f"Cannot setup email sender ({err})")
             raise err
 
         try:
@@ -305,6 +344,56 @@ class Context:
         return self._audit_logger
 
     @property
+    def email_address_for_iati_support_approvals(self) -> str:
+        """Get method for the IATI Support email address to which Secretariat approvals will be sent
+
+        Returns
+        -------
+        str
+        """
+        return self._email_address_for_iati_support_approvals
+
+    @property
+    def email_generator(self) -> EmailGenerator:
+        """Get method to retrieve the email generator.
+
+        Returns
+        -------
+        EmailGenerator
+        """
+        return self._email_generator
+
+    @property
+    def email_sender(self) -> EmailSender:
+        """Get method to retrieve the email sender.
+
+        Returns
+        -------
+        EmailSender
+        """
+        return self._email_sender
+
+    @property
+    def email_sender_ryd_from_email(self) -> str:
+        """Get method for the IATI email address from which to send notification emails
+
+        Returns
+        -------
+        str
+        """
+        return self._email_sender_ryd_from_email
+
+    @property
+    def email_sender_ryd_from_name(self) -> str:
+        """Get method for the IATI name from which to send notification emails
+
+        Returns
+        -------
+        str
+        """
+        return self._email_sender_ryd_from_name
+
+    @property
     def env(self) -> dict[str, str]:
         """Get method to retrieve the environment variables.
 
@@ -313,6 +402,16 @@ class Context:
         dict[str, str]
         """
         return self._env
+
+    @property
+    def iati_account_instance_base_url(self) -> str:
+        """Get method for the IATI Account instance base URL
+
+        Returns
+        -------
+        str
+        """
+        return self._iati_account_instance_base_url
 
     @property
     def key_store(self) -> jwt.jwks_client.PyJWKClient:

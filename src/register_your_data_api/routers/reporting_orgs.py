@@ -5,12 +5,15 @@ from typing import Any, Callable
 
 import fastapi
 import starlette.requests
-from fastapi import Depends, Security
+from fastapi import BackgroundTasks, Depends, Security
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from libsuitecrm import Filter, RequestFailed, SuiteCRM  # type: ignore
 
+from register_your_data_api import email_generator
+from register_your_data_api.background_tasks import ActionType, enqueue_task
 from register_your_data_api.dependencies import get_suitecrm_audit_headers
+from register_your_data_api.exceptions import RYDUserException
 
 from ..auth import authz
 from ..auth import models as auth_models
@@ -187,6 +190,7 @@ def get_reporting_org_detail(
 @router.post("", status_code=201)
 def create_reporting_org(
     request: starlette.requests.Request,
+    background_tasks: BackgroundTasks,
     reporting_org: ReportingOrgUserCreateModel,
     user: auth_models.UserAndCredentials = Security(
         authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org", "ryd:reporting_org:create"]
@@ -195,6 +199,8 @@ def create_reporting_org(
 ) -> UserReportingOrgRelationSingleResponse:
 
     context: Context = request.app.state.context
+
+    trace_id: uuid.UUID = uuid.uuid4()
 
     assert_precondition_met(
         context,
@@ -246,10 +252,11 @@ def create_reporting_org(
             )
         )
 
-        # 2. Create a relationship between the current user (Contacts) and the
-        # reporting org (Accounts) in SuiteCRM, but only if user is not
-        # operating in the capacity as a super_admin
+        # If user not superadmin, create relationship in CRM and entry in FGA db
         if not user.validator.is_superadmin:
+            # 2. Create a relationship between the current user (Contacts) and the
+            # reporting org (Accounts) in SuiteCRM, but only if user is not
+            # operating in the capacity as a super_admin
             crm.create_relationship(
                 "Accounts",
                 suitecrm_reporting_org["id"],
@@ -267,20 +274,45 @@ def create_reporting_org(
             )
             undo_actions.append((undo_msg, undo_func))
 
-        # 3. Create a fine-grained authorisation for this user to be ADMIN of new reporting_org
-        user_reporting_org_role = fga_models.FineGrainedAuthorisationRoleAssociation(
-            user=uuid.UUID(user.user_id_crm),
-            reporting_org=uuid.UUID(suitecrm_reporting_org["id"]),
-            role=fga_models.FineGrainedAuthorisationRole.ADMIN,
-        )
-        context.fine_grained_auth_provider.create_user_fine_grained_authorisation(user_reporting_org_role)
+            # 3. Create a fine-grained authorisation for this user to be ADMIN of new reporting_org
+            user_reporting_org_role = fga_models.FineGrainedAuthorisationRoleAssociation(
+                user=uuid.UUID(user.user_id_crm),
+                reporting_org=uuid.UUID(suitecrm_reporting_org["id"]),
+                role=fga_models.FineGrainedAuthorisationRole.ADMIN,
+            )
+            context.fine_grained_auth_provider.create_user_fine_grained_authorisation(user_reporting_org_role)
+
+        # 4. Fetch the user's name and email from SuiteCRM for email notification
+        filters = Filter().equal("id", user.user_id_crm)
+        crm_user = crm.get_records("Contacts", fields=["last_name", "email1"], filters=filters)
+        if "data" in crm_user and len(crm_user["data"]) > 0:
+            user_name = crm_user["data"][0]["attributes"]["last_name"]
+            user_email = crm_user["data"][0]["attributes"]["email1"]
+        else:
+            raise RYDUserException(
+                user=user,
+                status_code=400,
+                app_msg=(
+                    f"trace id: {trace_id} - User account details for user id: {user.user_id_crm} "
+                    "were not found in SuiteCRM."
+                ),
+                audit_msg=None,
+                public_msg=(
+                    "Problem creating the reporting org: full user account details were not found. "
+                    f"Please contact IATI Support quotating this error trace id: {trace_id}"
+                ),
+            )
+
+    except RYDUserException as e:
+        perform_undo_actions(context, undo_actions, "create_reporting_org", trace_id=trace_id)
+        raise e
 
     except Exception:
-        error_trace_id: uuid.UUID = perform_undo_actions(context, undo_actions, "create_reporting_org")
+        perform_undo_actions(context, undo_actions, "create_reporting_org", trace_id=trace_id)
 
         raise HTTPException(
             fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"There was a problem creating the reporting org. Error id: {error_trace_id}",
+            detail=f"There was a problem creating the reporting org. Error id: {trace_id}",
         )
 
     user_reporting_org = UserReportingOrgRelation(
@@ -292,8 +324,33 @@ def create_reporting_org(
 
     context.audit_logger.info(
         format_log_msg(
-            request, user, f"Created reporting org with id: {suitecrm_reporting_org['id']}", include_client_id=True
+            request,
+            user,
+            f"trace id: {trace_id} - Created reporting org with id: {suitecrm_reporting_org['id']}",
+            include_client_id=True,
         )
+    )
+
+    enqueue_task(
+        background_tasks,
+        ActionType.SEND_EMAIL,
+        email_sender=context.email_sender,
+        trace_id=str(trace_id),
+        email=context.email_generator.generate_email_content(
+            email_generator.EmailType.NEW_ORG_NEEDS_APPROVAL,
+            context.email_sender_ryd_from_name,
+            context.email_sender_ryd_from_email,
+            "IATI Support",
+            context.email_address_for_iati_support_approvals,
+            org_id=user_reporting_org.id,
+            org_short_name=user_reporting_org.metadata.short_name if user_reporting_org.metadata.short_name else "",
+            org_human_readable_name=user_reporting_org.metadata.human_readable_name,
+            user_id=user.user_id_crm,
+            user_name=user_name,
+            user_email=user_email,
+            site_url=context.iati_account_instance_base_url,
+            creation_date=str(new_reporting_org.created_date),
+        ),
     )
 
     return UserReportingOrgRelationSingleResponse(status="success", error=None, data=user_reporting_org)
