@@ -7,6 +7,8 @@ from .models import FineGrainedAuthorisationRole, FineGrainedAuthorisationRoleAs
 
 class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
 
+    user_id: UUID
+
     fine_grained_authorisations: list[FineGrainedAuthorisationRoleAssociation] | None
 
     is_superadmin: bool
@@ -171,6 +173,12 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
                 return True
 
         return False
+
+    def user_can_read_users_reporting_orgs(self, user_id: UUID) -> bool:
+        if self.is_superadmin:
+            return True
+
+        return self.user_id == user_id
 
     def get_users_fine_grained_associations(self) -> list[FineGrainedAuthorisationRoleAssociation]:
         if self.fine_grained_authorisations is None:

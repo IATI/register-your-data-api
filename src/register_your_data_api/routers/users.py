@@ -13,6 +13,8 @@ from libsuitecrm import Filter, SuiteCRM  # type: ignore
 from register_your_data_api import email_generator
 from register_your_data_api.background_tasks import ActionType, enqueue_task
 from register_your_data_api.dependencies import get_suitecrm_audit_headers
+from register_your_data_api.response_schemas import PaginatedResultsPage
+from register_your_data_api.services.suitecrm_common import get_reporting_orgs_for_user
 
 from ..auth import authz
 from ..auth.fga import models as fga_models
@@ -20,6 +22,9 @@ from ..auth.models import UserAndCredentials
 from ..data_handling.converters import get_fga_role_from_str
 from ..data_handling.data_schemas import (
     OrganisationId,
+    PaginationQueryParams,
+    UserReportingOrgDiscoverableMetadataRelation,
+    UserReportingOrgRelation,
     UserRoleUpdateModel,
 )
 from ..exception_handlers import format_log_msg
@@ -219,6 +224,52 @@ def add_user_to_reporting_org(
     )
 
     return JSONResponse({"data": None, "error": None, "status": "success"}, 200)
+
+
+@router.get("/{user_id}/reporting-orgs")
+def get_reporting_orgs(
+    user_id: uuid.UUID,
+    request: starlette.requests.Request,
+    user: UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org"]),
+    paging: PaginationQueryParams = fastapi.Depends(),
+) -> PaginatedResultsPage[UserReportingOrgRelation | UserReportingOrgDiscoverableMetadataRelation]:
+
+    context: Context = request.app.state.context
+
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
+
+    # 1. Check that the requested user exists in CRM
+    assert_precondition_met(
+        context,
+        user,
+        condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
+        public_msg=f"There is no user with ID {str(user_id)}.",
+        status_code=fastapi.status.HTTP_404_NOT_FOUND,
+        audit_log_msg=(
+            f"user id: {user.user_id_crm} - GET /users/{user_id}reporting-orgs - Request to read reporting orgs for "
+            f"user {user_id} but there is no such user in the CRM."
+        ),
+    )
+
+    # 2. Check that the user has permission to the the requested user's reporting orgs
+    assert_precondition_met(
+        context,
+        user,
+        condition_func=lambda: user.validator.user_can_read_users_reporting_orgs(user_id),
+        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+        public_msg=(
+            "There is a problem with your credentials. If this persists please report this "
+            "error to the provider of the tool you are using to access the IATI Register Your Data."
+        ),
+        audit_log_msg=(
+            f"user id: {user.user_id_crm} - GET /users/{user_id}reporting-orgs - Request to read reporting orgs for "
+            f"user {user_id} by unauthorised user."
+        ),
+    )
+
+    total_records, reporting_orgs = get_reporting_orgs_for_user(context, user, user_id, paging.page, paging.page_size)
+
+    return PaginatedResultsPage.create(reporting_orgs, paging.page, paging.page_size, total_records, request)
 
 
 @router.put("/{user_id}/reporting-org/{org_id}")
