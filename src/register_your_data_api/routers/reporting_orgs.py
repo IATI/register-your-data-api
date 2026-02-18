@@ -648,7 +648,7 @@ def get_reporting_org_datasets(
 
     # 4. SuiteCRM doesn't tell us the total number of records, so we set page size = 1 and make a request
     total_records_resp = crm.get_records("IATI_Datasets", filters=filters, fields=["id"], page_number=1, page_size=1)
-    total_records = total_records_resp.get("meta", {}).get("total-pages", 1)
+    total_records = total_records_resp.get("meta", {}).get("total-pages", 0)
 
     datasets = get_dataset_list_from_suitecrm_response(datasets_from_suitecrm)
 
