@@ -19,6 +19,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.0]
+
+### Added
+
+ - Added the /users/{id}/reporting-orgs endpoint which allows lookup of a user's
+   orgs by user id.
+
+### Fixed
+
+ - Updated short name validation so that it rejects values with uppercase
+   characters.
+ - Improves error handling and logging for when clients connect with a
+   misconfigured client ID.
+
+## [0.2.9]
+
+### Added
+
+ - Emails notifications to Secretariat admins when a user creates a new
+   organisation and to organisation admins when a user requests to join their
+   organisation.
+
+## [0.2.8]
+
+### Added
+
+ - Improved and adding more audit logging.
+
+### Fixed
+
+ - Fixed the validation on dataset short_name which wasn't checking whether the
+   record in the CRM was deleted.
+
 ## [0.2.7]
 
 ### Fixed
