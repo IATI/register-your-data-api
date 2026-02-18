@@ -58,6 +58,8 @@ def test_dataset_create_with_invalid_short_name(invalid_short_name: str) -> None
         "name:with:colon",  # contains colon
         "name*with*asterisk",  # contains asterisk
         "name?with?question",  # contains question mark)
+        "nameWITH_UPPER_casecharacters", # containers uppoer case chars
+        "ALLUPPERNAME", # all upper case chars
     ],
 )
 def test_dataset_update_with_invalid_short_name(invalid_short_name: str) -> None:
