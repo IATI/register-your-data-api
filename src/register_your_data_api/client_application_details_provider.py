@@ -54,8 +54,6 @@ class ClientApplicationDetailsProvider:
 
         if client_id not in self._CLIENT_APPLICATION_DETAILS:
             error_message = f"Unknown client application. Client id: {client_id} is not found in the list of clients"
-            self._app_logger.error(error_message)
-            self._audit_logger.error(error_message)
             raise ValueError(error_message)
 
         return self._CLIENT_APPLICATION_DETAILS[client_id]

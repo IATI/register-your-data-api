@@ -18,16 +18,14 @@ async def get_user_authnz(
     if user.sub is None:
         raise RuntimeError  # TODO: handle in proper way
 
-    # Read the user's details from Asgardeo to get their SuiteCRM UUID
-    # user.user_id_crm = context._crm_uuid_provider.get_crm_uuid(user)
+    current_user_id = UUID(user.user_id_crm)
 
-    # Read the user's fine grained authorisations
-    users_fgas = context.fine_grained_auth_provider.get_user_fine_grained_permissions(UUID(user.user_id_crm))
+    users_fgas = context.fine_grained_auth_provider.get_user_fine_grained_permissions(current_user_id)
 
-    is_superadmin = context.fine_grained_auth_provider.is_user_a_superadmin(UUID(user.user_id_crm))
+    is_superadmin = context.fine_grained_auth_provider.is_user_a_superadmin(current_user_id)
 
     user.fga_user_validator = FineGrainedAuthorisationUserValidator(
-        fine_grained_authorisations=users_fgas, is_superadmin=is_superadmin
+        user_id=current_user_id, fine_grained_authorisations=users_fgas, is_superadmin=is_superadmin
     )
 
     return user

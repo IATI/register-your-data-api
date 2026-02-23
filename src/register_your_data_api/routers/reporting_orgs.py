@@ -8,12 +8,13 @@ import starlette.requests
 from fastapi import BackgroundTasks, Depends, Security
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
-from libsuitecrm import Filter, RequestFailed, SuiteCRM  # type: ignore
+from libsuitecrm import Filter, SuiteCRM  # type: ignore
 
 from register_your_data_api import email_generator
 from register_your_data_api.background_tasks import ActionType, enqueue_task
 from register_your_data_api.dependencies import get_suitecrm_audit_headers
 from register_your_data_api.exceptions import RYDUserException
+from register_your_data_api.services.suitecrm_common import get_reporting_orgs_for_user
 
 from ..auth import authz
 from ..auth import models as auth_models
@@ -22,7 +23,6 @@ from ..data_handling.converters import (
     SUITECRM_REPORTING_ORG_FIELDS,
     get_dataset_actions_from_suitecrm_response,
     get_dataset_list_from_suitecrm_response,
-    get_discoverable_reporting_org_meta_from_suitecrm_response,
     get_fga_role_as_str,
     get_reporting_org_meta_from_suitecrm_response,
     get_suitecrm_dict_from_reporting_org,
@@ -31,11 +31,9 @@ from ..data_handling.data_schemas import (
     CRMUser,
     CRMUserListResponse,
     DatasetReadModel,
-    DiscoverableReportingOrgMetadata,
     PaginationQueryParams,
     ReportingOrgAction,
     ReportingOrgCreateModel,
-    ReportingOrgMetadata,
     ReportingOrgUpdateModel,
     ReportingOrgUserCreateModel,
     UserReportingOrgDiscoverableMetadataRelation,
@@ -60,74 +58,11 @@ def get_reporting_orgs(
 
     context: Context = request.app.state.context
 
-    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
+    total_records, reporting_orgs = get_reporting_orgs_for_user(
+        context, user, uuid.UUID(user.user_id_crm), paging.page, paging.page_size
+    )
 
-    try:
-        orgs_for_user = crm.get_relationship(
-            "Contacts",
-            user.user_id_crm,
-            "Accounts",
-            page_number=paging.page,
-            page_size=paging.page_size,
-            sort_field="name",
-            sort_dir="ascending",
-            filters=Filter().equal("iati_registry_discoverable", "1"),
-        )
-    except RequestFailed as e:
-        error_id = uuid.uuid4()
-        public_error_message = (
-            "There was a problem fetching the list of reporting orgs you are associated with. "
-            f"Please try again later, or contact IATI Support quoting error id: {error_id}"
-        )
-        context.app_logger.error(
-            f"error id: {error_id} - user id: {user.user_id_crm} - GET /reporting-orgs - Problem when fetching "
-            "the list of reporting organisations for this user from SuiteCRM. "
-            f"Details: {str(e)}"
-        )
-        raise HTTPException(status_code=fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR, detail=public_error_message)
-
-    total_records = orgs_for_user.get("meta", {}).get("total-records", 0)
-
-    reporting_orgs_list: list[UserReportingOrgRelation | UserReportingOrgDiscoverableMetadataRelation] = []
-
-    for reporting_org_from_suitecrm in orgs_for_user["data"]:
-        role_for_org = user.validator.get_user_role_for_reporting_org(reporting_org_from_suitecrm["id"])
-
-        if role_for_org is None:
-            context.app_logger.info(
-                f"user id: {user.user_id_crm} - GET /reporting-orgs - user is associated with organisation "
-                f"{reporting_org_from_suitecrm["id"]} in the CRM but has no role for that organisation in the FGA DB. "
-                "Organisation was omitted from the list returned to the user."
-            )
-            continue
-
-        reporting_org_obj: ReportingOrgMetadata | DiscoverableReportingOrgMetadata
-
-        if role_for_org == fga_models.FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING:
-            reporting_org_obj = get_discoverable_reporting_org_meta_from_suitecrm_response(
-                reporting_org_from_suitecrm["attributes"]
-            )
-        else:
-            reporting_org_obj = get_reporting_org_meta_from_suitecrm_response(
-                reporting_org_from_suitecrm["attributes"]
-            )
-
-        reporting_orgs_list.append(
-            UserReportingOrgRelation(
-                id=reporting_org_from_suitecrm["id"],
-                user_role=get_fga_role_as_str(role_for_org),
-                metadata=reporting_org_obj,
-                reporting_org_actions=(
-                    get_reporting_org_actions(crm, reporting_org_from_suitecrm["id"])
-                    if include_actions == "yes"
-                    else []
-                ),
-            )
-        )
-
-    reporting_orgs_list.sort(key=lambda org: org.metadata.human_readable_name.lower())
-
-    return PaginatedResultsPage.create(reporting_orgs_list, paging.page, paging.page_size, total_records, request)
+    return PaginatedResultsPage.create(reporting_orgs, paging.page, paging.page_size, total_records, request)
 
 
 @router.get("/{org_id}")
@@ -648,7 +583,7 @@ def get_reporting_org_datasets(
 
     # 4. SuiteCRM doesn't tell us the total number of records, so we set page size = 1 and make a request
     total_records_resp = crm.get_records("IATI_Datasets", filters=filters, fields=["id"], page_number=1, page_size=1)
-    total_records = total_records_resp.get("meta", {}).get("total-pages", 1)
+    total_records = total_records_resp.get("meta", {}).get("total-pages", 0)
 
     datasets = get_dataset_list_from_suitecrm_response(datasets_from_suitecrm)
 

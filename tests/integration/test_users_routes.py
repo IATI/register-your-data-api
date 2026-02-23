@@ -1,9 +1,92 @@
+import json
 import uuid
 
 import pytest
 from fastapi.testclient import TestClient
 
 from ..helpers.mocking import MockedAppAndContext
+from ..helpers.utilities import find_record_in_response
+
+
+@pytest.mark.parametrize(
+    "requesting_user,user_whose_orgs_to_fetch,reporting_org_details,status_code",
+    [
+        (  # user 0 accessing their own reporting orgs
+            0,
+            "698e0c1f-4e80-faa9-6533-68de801d1735",
+            [
+                ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01"),
+                ("ab851a83-a384-3eb9-caf0-68db8125b067", "agency-02"),
+            ],
+            200,
+        ),
+        (0, "bea511d3-c7a7-4097-55ed-68de81e94921", [], 403),  # user 0 accessing user 1's reporting orgs
+        (
+            1,
+            "bea511d3-c7a7-4097-55ed-68de81e94921",
+            [
+                ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01"),
+                ("da17734d-3926-47ef-8563-8a1b0247ed11", "gov-agency-03"),
+            ],
+            200,
+        ),
+        (  # user 2 accessing their own reporting orgs - as a super admin, they shouldn't have any
+            2,
+            "a1b191ee-4c12-461c-cbe1-68de8173f628",
+            [],
+            200,
+        ),
+        (  # user 2 accessing user 0's reporting orgs
+            2,
+            "698e0c1f-4e80-faa9-6533-68de801d1735",
+            [
+                ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01"),
+                ("ab851a83-a384-3eb9-caf0-68db8125b067", "agency-02"),
+            ],
+            200,
+        ),
+        (  # user 0 accessing unknown user's reporting orgs
+            0,
+            "01234567-0123-0123-0123-012345678901",
+            [],
+            404,
+        ),
+        (  # user 2 (superadmin) accessing unknown user's reporting orgs
+            0,
+            "01234567-0123-0123-0123-012345678901",
+            [],
+            404,
+        ),
+    ],
+)
+def test_get_users_reporting_orgs(
+    requesting_user: int, user_whose_orgs_to_fetch: str, reporting_org_details: list[tuple[str, str]], status_code: int
+) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        response = client.get(
+            f"/api/v1/users/{user_whose_orgs_to_fetch}/reporting-orgs",
+            headers=appAndContext.get_valid_authorization_header(requesting_user),
+            params={},
+        )
+
+        assert response.status_code == status_code
+
+        if response.status_code == 200:
+
+            resp_as_object = json.loads(response.content)
+
+            assert len(resp_as_object["data"]) == len(reporting_org_details)
+
+            for reporting_org in reporting_org_details:
+                reporting_org_response_object = find_record_in_response(resp_as_object, reporting_org[0])
+
+                assert reporting_org_response_object is not None
+                assert reporting_org_response_object["metadata"]["short_name"] == reporting_org[1]
 
 
 @pytest.mark.parametrize(

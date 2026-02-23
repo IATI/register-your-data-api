@@ -4,12 +4,12 @@ from typing import Annotated, Literal
 
 import pydantic
 
-alpha_numeric_hyphen_regex = re.compile(r"^[a-zA-Z0-9-_]+$")
+alpha_lowercase_numeric_hyphen_regex = re.compile(r"^[a-z0-9-_]+$")
 
 
-def validate_alpha_numeric_hyphen_str(value: str) -> str:
-    if not alpha_numeric_hyphen_regex.match(value):
-        raise ValueError("String must contain only alphanumeric characters, hyphens, or underscores")
+def validate_alpha_numeric_hyphen_lowercase_str(value: str) -> str:
+    if not alpha_lowercase_numeric_hyphen_regex.match(value):
+        raise ValueError("String must contain only lowercase alphanumeric characters, hyphens, or underscores")
     return value
 
 
@@ -62,7 +62,7 @@ class DatasetCreateModel(pydantic.BaseModel):
     human_readable_name: str
     licence_id: str
     owner_organisation_id: str
-    short_name: Annotated[str, pydantic.AfterValidator(validate_alpha_numeric_hyphen_str)]
+    short_name: Annotated[str, pydantic.AfterValidator(validate_alpha_numeric_hyphen_lowercase_str)]
     source_type: str
     url: str
     visibility: str
@@ -71,7 +71,7 @@ class DatasetCreateModel(pydantic.BaseModel):
 class DatasetUpdateModel(pydantic.BaseModel):
     human_readable_name: str
     licence_id: str
-    short_name: Annotated[str, pydantic.AfterValidator(validate_alpha_numeric_hyphen_str)]
+    short_name: Annotated[str, pydantic.AfterValidator(validate_alpha_numeric_hyphen_lowercase_str)]
     source_type: str
     url: str
     visibility: Literal["public", "private"] | None = None
@@ -124,7 +124,7 @@ class ReportingOrgUserCreateModel(pydantic.BaseModel):
     phone: str | None
     region: str | None
     reporting_source_type: str | None
-    short_name: Annotated[str, pydantic.AfterValidator(validate_alpha_numeric_hyphen_str)]
+    short_name: Annotated[str, pydantic.AfterValidator(validate_alpha_numeric_hyphen_lowercase_str)]
     website: str | None
 
 
