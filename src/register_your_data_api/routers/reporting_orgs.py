@@ -76,7 +76,8 @@ def get_reporting_org_detail(
     context: Context = request.app.state.context
 
     assert_precondition_met(
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user.validator.user_can_read_reporting_org(org_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         audit_log_msg=(f"Request to get reporting org details for org id: {org_id} by unauthorised user"),
@@ -101,7 +102,8 @@ def get_reporting_org_detail(
     # a user could have a role for an org that doesn't exist or isn't discoverable, so we handle that here. We don't
     # run this check first to avoid making unnecessary CRM calls in the majority of cases.
     assert_precondition_met(
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: len(crm_reporting_orgs["data"]) > 0,
         status_code=fastapi.status.HTTP_404_NOT_FOUND,
         audit_log_msg=(f"Request to get reporting org details failed for org id: {org_id} as it doesn't exist"),
@@ -136,7 +138,8 @@ def create_reporting_org(
     trace_id: uuid.UUID = uuid.uuid4()
 
     assert_precondition_met(
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user.validator.user_can_create_reporting_org(),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         audit_log_msg=(f"Request to create reporting org by unauthorised user id: {user.user_id_crm}"),
@@ -152,7 +155,8 @@ def create_reporting_org(
 
     # Check that the short name is unique
     assert_precondition_met(
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: get_num_crm_records(
             crm, "Accounts", {"iati_short_name": reporting_org.short_name, "iati_registry_discoverable": 1}
         )
@@ -370,7 +374,8 @@ def delete_reporting_org(
 
     # 1. Check that the user has permissions to delete (mark as not on RYD) the reporting org
     assert_precondition_met(
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user.validator.user_can_delete_reporting_org(org_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         audit_log_msg=(
@@ -398,7 +403,8 @@ def delete_reporting_org(
     )
 
     assert_precondition_met(
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: len(crm_reporting_org["data"]) == 1,
         status_code=fastapi.status.HTTP_404_NOT_FOUND,
         public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
@@ -553,7 +559,8 @@ def get_reporting_org_datasets(
 
     # 1. Check that the user has permissions to read datasets for the reporting org
     assert_precondition_met(
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user.validator.user_can_read_reporting_org_datasets(org_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         audit_log_msg=(
@@ -570,7 +577,8 @@ def get_reporting_org_datasets(
 
     # 2. Check that the Reporting Org exists in the CRM
     assert_precondition_met(
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
         status_code=fastapi.status.HTTP_404_NOT_FOUND,
         public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
