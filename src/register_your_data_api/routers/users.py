@@ -57,7 +57,6 @@ def add_user_to_reporting_org(
     user_id_to_add_as_str = str(user_id)
 
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: user_id_to_add_as_str == user.user_id_crm,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -70,7 +69,6 @@ def add_user_to_reporting_org(
 
     # Superadmins shouldn't be allowed to join any organisations
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: not user.validator.is_superadmin,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -88,7 +86,6 @@ def add_user_to_reporting_org(
 
     # Check the reporting org exists
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: len(org_response["data"]) == 1,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -100,7 +97,6 @@ def add_user_to_reporting_org(
 
     # Check the user isn't already a member of that organisation
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: user.validator.get_user_role_for_reporting_org(payload.oid) is None,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -240,7 +236,6 @@ def get_reporting_orgs(
 
     # 1. Check that the requested user exists in CRM
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
         public_msg=f"There is no user with ID {str(user_id)}.",
@@ -253,7 +248,6 @@ def get_reporting_orgs(
 
     # 2. Check that the user has permission to the the requested user's reporting orgs
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: user.validator.user_can_read_users_reporting_orgs(user_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
@@ -287,7 +281,6 @@ def update_user_role_in_reporting_org(
 
     # 1. Check if the requesting user has permission to update roles for this org
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: user.validator.user_can_modify_user_roles_for_reporting_org(org_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
@@ -306,7 +299,6 @@ def update_user_role_in_reporting_org(
 
     # 2. Check that the target user exists in CRM
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
         public_msg=f"There is no user with ID {str(user_id)} in the Registry.",
@@ -322,7 +314,6 @@ def update_user_role_in_reporting_org(
 
     # 4. Check that the reporting org exists in CRM
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
         public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
@@ -337,7 +328,6 @@ def update_user_role_in_reporting_org(
     # code does not find a relationship between the target user and the reporting org in the CRM, or a role
     # in the FGA database, it will try to create them, but this must not be allowed for superadmins
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: not context.fine_grained_auth_provider.is_user_a_superadmin(user_id),
         public_msg=f"User id: {user_id} cannot be given a role in no organisation with ID {str(org_id)}.",
@@ -432,7 +422,6 @@ def remove_user_from_reporting_org(
 
     # 1. Check if the requesting user has permission to update roles for this org
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: user.validator.user_can_modify_user_roles_for_reporting_org(org_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
@@ -451,7 +440,6 @@ def remove_user_from_reporting_org(
 
     # 2. Check that the target user exists in CRM
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
         public_msg=f"There is no user with ID {str(user_id)} in the Registry.",
@@ -464,7 +452,6 @@ def remove_user_from_reporting_org(
 
     # 3. Check that the reporting org exists in CRM
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
         public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
@@ -478,7 +465,6 @@ def remove_user_from_reporting_org(
     user_role_for_org = context.fine_grained_auth_provider.get_user_role_for_org(user_id, org_id)
 
     assert_precondition_met(
-        context,
         user,
         condition_func=lambda: user_role_for_org is not None,
         public_msg=f"User id: {user_id} has no role in organisation with id: {str(org_id)} in the Registry.",

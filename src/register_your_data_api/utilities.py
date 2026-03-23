@@ -9,7 +9,6 @@ from .util import Context
 
 
 def assert_precondition_met(
-    context: Context,
     user: UserAndCredentials,
     condition_func: Callable[[], bool],
     public_msg: str,
@@ -21,8 +20,6 @@ def assert_precondition_met(
 
     Parameters
     ----------
-    context : Context
-        The application context
     user : UserAndCredentials
         The user and details about their credentials performing the action
     condition_func : Callable[[], bool]
