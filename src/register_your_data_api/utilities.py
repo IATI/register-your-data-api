@@ -41,7 +41,8 @@ def assert_precondition_met(
     if not condition_func():
 
         raise RYDUserException(
-            user=user,
+            user_id=user.user_id_crm,
+            client_id=user.client_id,
             status_code=status_code,
             app_msg=app_log_msg,
             audit_msg=audit_log_msg,

@@ -129,7 +129,8 @@ def add_user_to_reporting_org(
         context.audit_logger.info(
             format_log_msg(
                 request,
-                user,
+                user.user_id_crm,
+                user.client_id,
                 (
                     f"trace id: {trace_id} - request to join organisation id: "
                     f"{payload.oid_str} - crm relationship created."
@@ -149,7 +150,8 @@ def add_user_to_reporting_org(
         context.audit_logger.info(
             format_log_msg(
                 request,
-                user,
+                user.user_id_crm,
+                user.client_id,
                 (
                     f"trace id: {trace_id} - request to join organisation id: "
                     f"{payload.oid_str} - entry in FGA DB created."
@@ -193,7 +195,8 @@ def add_user_to_reporting_org(
             context.app_logger.error(
                 format_log_msg(
                     request,
-                    user,
+                    user.user_id_crm,
+                    user.client_id,
                     (
                         f"trace id: {trace_id} - User requested to join organisation id: {payload.oid_str} and "
                         "their request has been processed but no admins were found for this organisation so no email "
@@ -213,7 +216,8 @@ def add_user_to_reporting_org(
     context.audit_logger.info(
         format_log_msg(
             request,
-            user,
+            user.user_id_crm,
+            user.client_id,
             (f"trace id: {trace_id} - request to join organisation id: {payload.oid_str} succeeded."),
             include_client_id=True,
         )
@@ -396,7 +400,8 @@ def update_user_role_in_reporting_org(
     context.audit_logger.info(
         format_log_msg(
             request,
-            user,
+            user.user_id_crm,
+            user.client_id,
             (
                 f"request to change user id: {user_id}'s role for organisation with id: {org_id} "
                 f"to '{new_role.role}' by authorised user with id: {user.user_id_crm} succeeded."
@@ -482,7 +487,8 @@ def remove_user_from_reporting_org(
         context.audit_logger.info(
             format_log_msg(
                 request,
-                user,
+                user.user_id_crm,
+                user.client_id,
                 f"Request to remove user id: {user_id}'s from organisation with id: {org_id} succeeded",
                 include_client_id=True,
             )

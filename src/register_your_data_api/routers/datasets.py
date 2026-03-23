@@ -101,7 +101,8 @@ def create_dataset(
     context.audit_logger.info(
         format_log_msg(
             request,
-            user,
+            user.user_id_crm,
+            user.client_id,
             f"trace id: {trace_id} - Created dataset with id: {suitecrm_dataset['id']}",
             include_client_id=True,
         )
@@ -272,7 +273,8 @@ def update_dataset(
     context.audit_logger.info(
         format_log_msg(
             request,
-            user,
+            user.user_id_crm,
+            user.client_id,
             f"trace id: {trace_id} - Created dataset with id: {suitecrm_dataset['id']}",
             include_client_id=True,
         )
@@ -337,7 +339,8 @@ def delete_dataset(
         context.audit_logger.info(
             format_log_msg(
                 request,
-                user,
+                user.user_id_crm,
+                user.client_id,
                 f"trace id: {trace_id} - Deleted dataset with id: {str(dataset_id)}",
                 include_client_id=True,
             )

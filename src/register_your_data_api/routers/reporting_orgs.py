@@ -221,7 +221,8 @@ def create_reporting_org(
             user_email = crm_user["data"][0]["attributes"]["email1"]
         else:
             raise RYDUserException(
-                user=user,
+                user_id=user.user_id_crm,
+                client_id=user.client_id,
                 status_code=400,
                 app_msg=(
                     f"trace id: {trace_id} - User account details for user id: {user.user_id_crm} "
@@ -256,7 +257,8 @@ def create_reporting_org(
     context.audit_logger.info(
         format_log_msg(
             request,
-            user,
+            user.user_id_crm,
+            user.client_id,
             f"trace id: {trace_id} - Created reporting org with id: {suitecrm_reporting_org['id']}",
             include_client_id=True,
         )
@@ -344,7 +346,13 @@ def update_reporting_org(
     )
 
     context.audit_logger.info(
-        format_log_msg(request, user, f"Updated reporting org with id: {str(org_id)}", include_client_id=True)
+        format_log_msg(
+            request,
+            user.user_id_crm,
+            user.client_id,
+            f"Updated reporting org with id: {str(org_id)}",
+            include_client_id=True,
+        )
     )
 
     return UserReportingOrgRelationSingleResponse(status="success", error=None, data=user_reporting_org_relation)
@@ -441,7 +449,13 @@ def delete_reporting_org(
         )
 
     context.audit_logger.info(
-        format_log_msg(request, user, f"Deleted reporting org with id: {str(org_id)}", include_client_id=True)
+        format_log_msg(
+            request,
+            user.user_id_crm,
+            user.client_id,
+            f"Deleted reporting org with id: {str(org_id)}",
+            include_client_id=True,
+        )
     )
 
     return fastapi.responses.JSONResponse({"status": "success", "data": None, "error": None})
