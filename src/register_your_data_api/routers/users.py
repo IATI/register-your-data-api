@@ -11,13 +11,16 @@ from fastapi.responses import JSONResponse
 from libsuitecrm import Filter, SuiteCRM  # type: ignore
 
 from register_your_data_api import email_generator
+from register_your_data_api.auth.fga.models import (
+    FineGrainedAuthorisationRole,
+    FineGrainedAuthorisationRoleAssociation,
+)
 from register_your_data_api.background_tasks import ActionType, enqueue_task
 from register_your_data_api.dependencies import get_suitecrm_audit_headers
 from register_your_data_api.response_schemas import PaginatedResultsPage
 from register_your_data_api.services.suitecrm_common import get_reporting_orgs_for_user
 
 from ..auth import authz
-from ..auth.fga import models as fga_models
 from ..auth.models import UserAndCredentials
 from ..data_handling.converters import get_fga_role_from_str
 from ..data_handling.data_schemas import (
@@ -144,10 +147,10 @@ def add_user_to_reporting_org(
         )
 
         # 2. Create a fine-grained authorisation for this user to be CONTRIBUTOR_PENDING of new reporting_org
-        user_reporting_org_role = fga_models.FineGrainedAuthorisationRoleAssociation(
+        user_reporting_org_role = FineGrainedAuthorisationRoleAssociation(
             user=uuid.UUID(user.user_id_crm),
             reporting_org=payload.oid,
-            role=fga_models.FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING,
+            role=FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING,
         )
         context.fine_grained_auth_provider.create_user_fine_grained_authorisation(user_reporting_org_role)
 
@@ -387,7 +390,7 @@ def update_user_role_in_reporting_org(
             "Creating new entry in the FGA database."
         )
 
-        user_role_for_org = fga_models.FineGrainedAuthorisationRoleAssociation(
+        user_role_for_org = FineGrainedAuthorisationRoleAssociation(
             user=user_id,
             reporting_org=org_id,
             role=get_fga_role_from_str(new_role.role),
@@ -494,7 +497,45 @@ def remove_user_from_reporting_org(
         ),
     )
 
-    # 4. Delete the user's role in the FGA database
+    # 4a. Check that the user isn't the last user in the organisation
+    users_in_org = context.fine_grained_auth_provider.get_user_associations_for_org(org_id)
+
+    assert_precondition_met(
+        user.user_id_crm,
+        user.client_id,
+        condition_func=lambda: len(users_in_org) > 1,
+        public_msg=(
+            f"User id: {user_id} is the last user associated with "
+            f"organisation id: {org_id} so cannot be removed from the organisation."
+        ),
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        audit_log_msg=(
+            f"Unexpected error: user with id: {user.user_id_crm} attempted to remove user id: {user_id}'s role in "
+            f"organisation with id: {org_id} but the user is the last user associated with the organisation. "
+        ),
+    )
+
+    # 4b. Check that the user isn't the last admin user for this organisation
+    number_admins = len(list(filter(lambda x: x.role == FineGrainedAuthorisationRole.ADMIN, users_in_org)))
+
+    assert_precondition_met(
+        user.user_id_crm,
+        user.client_id,
+        condition_func=lambda: not (
+            user_role_for_org.role == FineGrainedAuthorisationRole.ADMIN and number_admins == 1  # type: ignore
+        ),
+        public_msg=(
+            f"User id: {user_id} is the last admin user associated with "
+            f"organisation id: {org_id} so cannot be removed from the organisation."
+        ),
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        audit_log_msg=(
+            f"Unexpected error: user with id: {user.user_id_crm} attempted to remove user id: {user_id}'s role in "
+            f"organisation with id: {org_id} but the user is the last admin user associated with the organisation."
+        ),
+    )
+
+    # 5. Delete the user's role in the FGA database
     try:
         context.fine_grained_auth_provider.delete_user_role_for_org(user_role_for_org)  # type: ignore
 
