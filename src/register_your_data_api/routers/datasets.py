@@ -49,8 +49,8 @@ def create_dataset(
     # Check the user has permission to create datasets for the specified
     # reporting org
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user.validator.user_can_create_reporting_org_datasets(
             uuid.UUID(dataset.owner_organisation_id)
         ),
@@ -69,8 +69,8 @@ def create_dataset(
     # the case for superadmins, so permission to create datasets for a reporting
     # org does not imply that the reporting org exists, so we check that here
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(dataset.owner_organisation_id)),
         status_code=fastapi.status.HTTP_404_NOT_FOUND,
         audit_log_msg=(
@@ -82,8 +82,8 @@ def create_dataset(
 
     # Check that the short name is unique
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: get_num_crm_records(crm, "IATI_Datasets", {"iati_short_name": dataset.short_name}) == 0,
         status_code=fastapi.status.HTTP_409_CONFLICT,
         audit_log_msg=(
@@ -104,7 +104,8 @@ def create_dataset(
     context.audit_logger.info(
         format_log_msg(
             request,
-            user,
+            user.user_id_crm,
+            user.client_id,
             f"trace id: {trace_id} - Created dataset with id: {suitecrm_dataset['id']}",
             include_client_id=True,
         )
@@ -137,8 +138,8 @@ def get_dataset_detail(
 
     # Check that the dataset exists and is unique
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: len(datasets) == 1,
         status_code=fastapi.status.HTTP_404_NOT_FOUND,
         audit_log_msg=(
@@ -194,8 +195,8 @@ def update_dataset(
     )
 
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: len(original_dataset_record_from_suitecrm["data"]) != 0,
         status_code=fastapi.status.HTTP_404_NOT_FOUND,
         audit_log_msg=(
@@ -210,8 +211,8 @@ def update_dataset(
     owning_reporting_org = original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_dataset_owner_org_id"]
 
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user.validator.user_can_update_reporting_org_datasets(uuid.UUID(owning_reporting_org)),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         audit_log_msg=(
@@ -228,8 +229,8 @@ def update_dataset(
     dataset_for_suitecrm = get_suitecrm_dict_from_dataset(dataset)
 
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: (
             user.validator.user_can_update_reporting_org_dataset_visibility(owning_reporting_org)
             or dataset.visibility is None
@@ -251,8 +252,8 @@ def update_dataset(
 
     # Check that the short name is unique
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: (
             original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_short_name"] == dataset.short_name
             or (
@@ -280,7 +281,8 @@ def update_dataset(
     context.audit_logger.info(
         format_log_msg(
             request,
-            user,
+            user.user_id_crm,
+            user.client_id,
             f"trace id: {trace_id} - Created dataset with id: {suitecrm_dataset['id']}",
             include_client_id=True,
         )
@@ -317,8 +319,8 @@ def delete_dataset(
     )
 
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: len(original_dataset_record_from_suitecrm["data"]) == 1,
         status_code=fastapi.status.HTTP_404_NOT_FOUND,
         public_msg=f"There is no dataset with ID {str(dataset_id)} in the Registry.",
@@ -327,8 +329,8 @@ def delete_dataset(
     owning_reporting_org = original_dataset_record_from_suitecrm["data"][0]["attributes"]["iati_dataset_owner_org_id"]
 
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user.validator.user_can_delete_reporting_org_datasets(uuid.UUID(owning_reporting_org)),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         public_msg=(
@@ -347,7 +349,8 @@ def delete_dataset(
         context.audit_logger.info(
             format_log_msg(
                 request,
-                user,
+                user.user_id_crm,
+                user.client_id,
                 f"trace id: {trace_id} - Deleted dataset with id: {str(dataset_id)}",
                 include_client_id=True,
             )

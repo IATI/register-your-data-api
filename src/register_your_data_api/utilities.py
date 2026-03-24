@@ -3,14 +3,13 @@ from typing import Any, Callable
 
 from libsuitecrm import Filter, SuiteCRM  # type: ignore
 
-from .auth.models import UserAndCredentials
 from .exceptions import RYDUserException
 from .util import Context
 
 
 def assert_precondition_met(
-    context: Context,
-    user: UserAndCredentials,
+    user_id: str,
+    client_id: str,
     condition_func: Callable[[], bool],
     public_msg: str,
     status_code: int,
@@ -21,10 +20,10 @@ def assert_precondition_met(
 
     Parameters
     ----------
-    context : Context
-        The application context
-    user : UserAndCredentials
-        The user and details about their credentials performing the action
+    user_id : str
+        The ID of the user performing the action
+    client_id : str
+        The client ID of the application the user is using
     condition_func : Callable[[], bool]
         A function that returns True if the precondition is met
     public_msg : str
@@ -44,7 +43,8 @@ def assert_precondition_met(
     if not condition_func():
 
         raise RYDUserException(
-            user=user,
+            user_id=user_id,
+            client_id=client_id,
             status_code=status_code,
             app_msg=app_log_msg,
             audit_msg=audit_log_msg,

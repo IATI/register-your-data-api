@@ -11,13 +11,16 @@ from fastapi.responses import JSONResponse
 from libsuitecrm import Filter, SuiteCRM  # type: ignore
 
 from register_your_data_api import email_generator
+from register_your_data_api.auth.fga.models import (
+    FineGrainedAuthorisationRole,
+    FineGrainedAuthorisationRoleAssociation,
+)
 from register_your_data_api.background_tasks import ActionType, enqueue_task
 from register_your_data_api.dependencies import get_suitecrm_audit_headers
 from register_your_data_api.response_schemas import PaginatedResultsPage
 from register_your_data_api.services.suitecrm_common import get_reporting_orgs_for_user
 
 from ..auth import authz
-from ..auth.fga import models as fga_models
 from ..auth.models import UserAndCredentials
 from ..data_handling.converters import get_fga_role_from_str
 from ..data_handling.data_schemas import (
@@ -57,8 +60,8 @@ def add_user_to_reporting_org(
     user_id_to_add_as_str = str(user_id)
 
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user_id_to_add_as_str == user.user_id_crm,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
         public_msg=("You cannot request a different user to join a reporting organisation."),
@@ -70,8 +73,8 @@ def add_user_to_reporting_org(
 
     # Superadmins shouldn't be allowed to join any organisations
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: not user.validator.is_superadmin,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
         public_msg=("Superadmins cannot join organisations."),
@@ -88,8 +91,8 @@ def add_user_to_reporting_org(
 
     # Check the reporting org exists
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: len(org_response["data"]) == 1,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
         public_msg=(f"There is no organisation with ID {payload.oid_str} in the Registry."),
@@ -100,8 +103,8 @@ def add_user_to_reporting_org(
 
     # Check the user isn't already a member of that organisation
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user.validator.get_user_role_for_reporting_org(payload.oid) is None,
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
         public_msg=(f"You are already associated with that reporting org id: {payload.oid_str}."),
@@ -133,7 +136,8 @@ def add_user_to_reporting_org(
         context.audit_logger.info(
             format_log_msg(
                 request,
-                user,
+                user.user_id_crm,
+                user.client_id,
                 (
                     f"trace id: {trace_id} - request to join organisation id: "
                     f"{payload.oid_str} - crm relationship created."
@@ -143,17 +147,18 @@ def add_user_to_reporting_org(
         )
 
         # 2. Create a fine-grained authorisation for this user to be CONTRIBUTOR_PENDING of new reporting_org
-        user_reporting_org_role = fga_models.FineGrainedAuthorisationRoleAssociation(
+        user_reporting_org_role = FineGrainedAuthorisationRoleAssociation(
             user=uuid.UUID(user.user_id_crm),
             reporting_org=payload.oid,
-            role=fga_models.FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING,
+            role=FineGrainedAuthorisationRole.CONTRIBUTOR_PENDING,
         )
         context.fine_grained_auth_provider.create_user_fine_grained_authorisation(user_reporting_org_role)
 
         context.audit_logger.info(
             format_log_msg(
                 request,
-                user,
+                user.user_id_crm,
+                user.client_id,
                 (
                     f"trace id: {trace_id} - request to join organisation id: "
                     f"{payload.oid_str} - entry in FGA DB created."
@@ -197,7 +202,8 @@ def add_user_to_reporting_org(
             context.app_logger.error(
                 format_log_msg(
                     request,
-                    user,
+                    user.user_id_crm,
+                    user.client_id,
                     (
                         f"trace id: {trace_id} - User requested to join organisation id: {payload.oid_str} and "
                         "their request has been processed but no admins were found for this organisation so no email "
@@ -217,7 +223,8 @@ def add_user_to_reporting_org(
     context.audit_logger.info(
         format_log_msg(
             request,
-            user,
+            user.user_id_crm,
+            user.client_id,
             (f"trace id: {trace_id} - request to join organisation id: {payload.oid_str} succeeded."),
             include_client_id=True,
         )
@@ -240,8 +247,8 @@ def get_reporting_orgs(
 
     # 1. Check that the requested user exists in CRM
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
         public_msg=f"There is no user with ID {str(user_id)}.",
         status_code=fastapi.status.HTTP_404_NOT_FOUND,
@@ -253,8 +260,8 @@ def get_reporting_orgs(
 
     # 2. Check that the user has permission to the the requested user's reporting orgs
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user.validator.user_can_read_users_reporting_orgs(user_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         public_msg=(
@@ -287,8 +294,8 @@ def update_user_role_in_reporting_org(
 
     # 1. Check if the requesting user has permission to update roles for this org
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user.validator.user_can_modify_user_roles_for_reporting_org(org_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         public_msg=(
@@ -306,8 +313,8 @@ def update_user_role_in_reporting_org(
 
     # 2. Check that the target user exists in CRM
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
         public_msg=f"There is no user with ID {str(user_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -322,8 +329,8 @@ def update_user_role_in_reporting_org(
 
     # 4. Check that the reporting org exists in CRM
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
         public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -337,8 +344,8 @@ def update_user_role_in_reporting_org(
     # code does not find a relationship between the target user and the reporting org in the CRM, or a role
     # in the FGA database, it will try to create them, but this must not be allowed for superadmins
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: not context.fine_grained_auth_provider.is_user_a_superadmin(user_id),
         public_msg=f"User id: {user_id} cannot be given a role in no organisation with ID {str(org_id)}.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -383,7 +390,7 @@ def update_user_role_in_reporting_org(
             "Creating new entry in the FGA database."
         )
 
-        user_role_for_org = fga_models.FineGrainedAuthorisationRoleAssociation(
+        user_role_for_org = FineGrainedAuthorisationRoleAssociation(
             user=user_id,
             reporting_org=org_id,
             role=get_fga_role_from_str(new_role.role),
@@ -406,7 +413,8 @@ def update_user_role_in_reporting_org(
     context.audit_logger.info(
         format_log_msg(
             request,
-            user,
+            user.user_id_crm,
+            user.client_id,
             (
                 f"request to change user id: {user_id}'s role for organisation with id: {org_id} "
                 f"to '{new_role.role}' by authorised user with id: {user.user_id_crm} succeeded."
@@ -432,8 +440,8 @@ def remove_user_from_reporting_org(
 
     # 1. Check if the requesting user has permission to update roles for this org
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user.validator.user_can_modify_user_roles_for_reporting_org(org_id),
         status_code=fastapi.status.HTTP_403_FORBIDDEN,
         public_msg=(
@@ -451,8 +459,8 @@ def remove_user_from_reporting_org(
 
     # 2. Check that the target user exists in CRM
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
         public_msg=f"There is no user with ID {str(user_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -464,8 +472,8 @@ def remove_user_from_reporting_org(
 
     # 3. Check that the reporting org exists in CRM
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: check_crm_record_exists(crm, "Accounts", str(org_id)),
         public_msg=f"There is no organisation with ID {str(org_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -478,8 +486,8 @@ def remove_user_from_reporting_org(
     user_role_for_org = context.fine_grained_auth_provider.get_user_role_for_org(user_id, org_id)
 
     assert_precondition_met(
-        context,
-        user,
+        user.user_id_crm,
+        user.client_id,
         condition_func=lambda: user_role_for_org is not None,
         public_msg=f"User id: {user_id} has no role in organisation with id: {str(org_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
@@ -489,14 +497,53 @@ def remove_user_from_reporting_org(
         ),
     )
 
-    # 4. Delete the user's role in the FGA database
+    # 4a. Check that the user isn't the last user in the organisation
+    users_in_org = context.fine_grained_auth_provider.get_user_associations_for_org(org_id)
+
+    assert_precondition_met(
+        user.user_id_crm,
+        user.client_id,
+        condition_func=lambda: len(users_in_org) > 1,
+        public_msg=(
+            f"User id: {user_id} is the last user associated with "
+            f"organisation id: {org_id} so cannot be removed from the organisation."
+        ),
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        audit_log_msg=(
+            f"Unexpected error: user with id: {user.user_id_crm} attempted to remove user id: {user_id}'s role in "
+            f"organisation with id: {org_id} but the user is the last user associated with the organisation. "
+        ),
+    )
+
+    # 4b. Check that the user isn't the last admin user for this organisation
+    number_admins = len(list(filter(lambda x: x.role == FineGrainedAuthorisationRole.ADMIN, users_in_org)))
+
+    assert_precondition_met(
+        user.user_id_crm,
+        user.client_id,
+        condition_func=lambda: not (
+            user_role_for_org.role == FineGrainedAuthorisationRole.ADMIN and number_admins == 1  # type: ignore
+        ),
+        public_msg=(
+            f"User id: {user_id} is the last admin user associated with "
+            f"organisation id: {org_id} so cannot be removed from the organisation."
+        ),
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        audit_log_msg=(
+            f"Unexpected error: user with id: {user.user_id_crm} attempted to remove user id: {user_id}'s role in "
+            f"organisation with id: {org_id} but the user is the last admin user associated with the organisation."
+        ),
+    )
+
+    # 5. Delete the user's role in the FGA database
     try:
         context.fine_grained_auth_provider.delete_user_role_for_org(user_role_for_org)  # type: ignore
 
         context.audit_logger.info(
             format_log_msg(
                 request,
-                user,
+                user.user_id_crm,
+                user.client_id,
                 f"Request to remove user id: {user_id}'s from organisation with id: {org_id} succeeded",
                 include_client_id=True,
             )

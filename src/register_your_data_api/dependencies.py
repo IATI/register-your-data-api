@@ -21,7 +21,8 @@ def get_suitecrm_audit_headers(
     except ValueError as e:
         trace_id = uuid.uuid4()
         raise RYDUserException(
-            user,
+            user.user_id_crm,
+            user.client_id,
             400,
             f"trace_id: {trace_id} - details: unknown client ID",
             f"trace_id: {trace_id} - details: {e.args[0]}",

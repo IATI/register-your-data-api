@@ -4,18 +4,19 @@ import starlette.exceptions
 from fastapi.exceptions import RequestValidationError
 from starlette.requests import Request
 
-from .auth.models import UserAndCredentials
 from .exceptions import RYDUserException  # noqa: F401
 from .util import Context  # noqa: F401
 
 
 def format_log_msg(
-    request: Request, user: UserAndCredentials, msg: str | None, include_client_id: bool = False
+    request: Request, user_id: str | None, client_id: str | None, msg: str | None, include_client_id: bool = False
 ) -> str | None:
     if msg is None:
         return None
-    client_prefix: str = f"client id: {user.client_id} - " if include_client_id else ""
-    return client_prefix + f"user id: {user.user_id_crm} - " f"{request.method} {request.url.path} - {msg}"
+
+    client_prefix: str = f"client id: {client_id} - " if include_client_id else ""
+
+    return client_prefix + f"user id: {user_id} - {request.method} {request.url.path} - {msg}"
 
 
 async def ryd_user_exception_handler(request: Request, exc: RYDUserException) -> fastapi.responses.JSONResponse:
@@ -36,9 +37,9 @@ async def ryd_user_exception_handler(request: Request, exc: RYDUserException) ->
 
     context: Context = request.app.state.context
 
-    app_log_msg = format_log_msg(request, exc.user, exc.app_msg)
+    app_log_msg = format_log_msg(request, exc.user_id, exc.client_id, exc.app_msg)
 
-    audit_log_msg = format_log_msg(request, exc.user, exc.audit_msg, include_client_id=True)
+    audit_log_msg = format_log_msg(request, exc.user_id, exc.client_id, exc.audit_msg, include_client_id=True)
 
     if app_log_msg is not None:
         context.app_logger.error(app_log_msg)

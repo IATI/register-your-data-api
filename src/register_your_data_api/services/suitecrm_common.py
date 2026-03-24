@@ -56,7 +56,12 @@ def get_reporting_orgs_for_user(
             f"{user_to_fetch_str} from SuiteCRM. Details: {str(e)}"
         )
         raise RYDUserException(
-            requesting_user, 500, app_msg=None, audit_msg=audit_message, public_msg=public_error_message
+            requesting_user.user_id_crm,
+            requesting_user.client_id,
+            500,
+            app_msg=None,
+            audit_msg=audit_message,
+            public_msg=public_error_message,
         )
 
     total_records = orgs_for_user.get("meta", {}).get("total-records", 0)

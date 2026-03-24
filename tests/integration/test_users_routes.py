@@ -244,6 +244,46 @@ def test_delete_user_role_permissions_check(logged_in_user_idx: int, expected_st
 
 
 @pytest.mark.parametrize(
+    "logged_in_user_idx,expected_status_code",
+    [
+        (1, 400),  # Person 2 (User index 1) is an ADMIN - can delete roles, but should get 400 for last user
+    ],
+)
+def test_delete_user_role_cannot_delete_last_user(logged_in_user_idx: int, expected_status_code: int) -> None:
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        response = client.delete(
+            "/api/v1/users/bea511d3-c7a7-4097-55ed-68de81e94921/reporting-org/da17734d-3926-47ef-8563-8a1b0247ed11",
+            headers=appAndContext.get_valid_authorization_header(logged_in_user_idx),
+        )
+
+        assert response.status_code == expected_status_code
+
+
+@pytest.mark.parametrize(
+    "logged_in_user_idx,expected_status_code",
+    [
+        (1, 400),  # Person 2 (User index 1) is an ADMIN - can delete roles, but should get 400 for last admin user
+    ],
+)
+def test_delete_user_role_cannot_delete_last_admin_user(logged_in_user_idx: int, expected_status_code: int) -> None:
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        response = client.delete(
+            "/api/v1/users/bea511d3-c7a7-4097-55ed-68de81e94921/reporting-org/698e0c1f-4e80-faa9-6533-68de801d1735",
+            headers=appAndContext.get_valid_authorization_header(logged_in_user_idx),
+        )
+
+        assert response.status_code == expected_status_code
+
+
+@pytest.mark.parametrize(
     "logged_in_user_idx,user_to_modify,expected_status_code",
     [
         (2, "7625122c-f752-40dc-a577-5cb49e13de2a", 200),

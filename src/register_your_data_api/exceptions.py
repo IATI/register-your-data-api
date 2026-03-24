@@ -1,6 +1,3 @@
-from .auth.models import UserAndCredentials
-
-
 class RYDException(Exception):
     """Base class for all app errors."""
 
@@ -12,13 +9,15 @@ class RYDUserException(RYDException):
 
     def __init__(
         self,
-        user: UserAndCredentials,
+        user_id: str | None,
+        client_id: str | None,
         status_code: int,
         app_msg: str | None,
         audit_msg: str | None,
         public_msg: str | None,
     ):
-        self.user: UserAndCredentials = user
+        self.user_id: str | None = user_id
+        self.client_id: str | None = client_id
         self.status_code: int = status_code
         self.app_msg: str | None = app_msg
         self.audit_msg: str | None = audit_msg
