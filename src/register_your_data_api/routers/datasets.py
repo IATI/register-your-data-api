@@ -10,6 +10,9 @@ from fastapi.responses import JSONResponse
 from libsuitecrm import Filter, SuiteCRM  # type: ignore
 
 from register_your_data_api.dependencies import get_suitecrm_audit_headers
+from register_your_data_api.exception_handlers import format_log_msg
+from register_your_data_api.util import Context
+from register_your_data_api.utilities import assert_precondition_met, check_crm_record_exists, get_num_crm_records
 
 from ..auth import authz
 from ..auth import models as auth_models
@@ -25,8 +28,6 @@ from ..data_handling.data_schemas import (
     DatasetSingleResponse,
     DatasetUpdateModel,
 )
-from ..util import Context
-from ..utilities import assert_precondition_met, check_crm_record_exists, get_num_crm_records
 
 router = fastapi.APIRouter(prefix="/api/v1/datasets")
 
@@ -42,6 +43,8 @@ def create_dataset(
     context: Context = request.app.state.context
 
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
+
+    trace_id: uuid.UUID = uuid.uuid4()
 
     # Check the user has permission to create datasets for the specified
     # reporting org
@@ -97,6 +100,15 @@ def create_dataset(
     dataset_for_suitecrm = get_suitecrm_dict_from_dataset(dataset)
     suitecrm_dataset = crm.create_record("IATI_Datasets", dataset_for_suitecrm, headers=suitecrm_audit_headers)
     new_dataset = get_dataset_meta_from_suitecrm_response(suitecrm_dataset["attributes"])
+
+    context.audit_logger.info(
+        format_log_msg(
+            request,
+            user,
+            f"trace id: {trace_id} - Created dataset with id: {suitecrm_dataset['id']}",
+            include_client_id=True,
+        )
+    )
 
     return DatasetSingleResponse(
         data=DatasetReadModel(
@@ -171,6 +183,8 @@ def update_dataset(
     context: Context = request.app.state.context
 
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
+
+    trace_id: uuid.UUID = uuid.uuid4()
 
     # Fetch the original dataset record so we know which reporting org it belongs to
     ds_filters = Filter()
@@ -263,6 +277,15 @@ def update_dataset(
     )
     updated_dataset = get_dataset_meta_from_suitecrm_response(suitecrm_dataset["attributes"])
 
+    context.audit_logger.info(
+        format_log_msg(
+            request,
+            user,
+            f"trace id: {trace_id} - Created dataset with id: {suitecrm_dataset['id']}",
+            include_client_id=True,
+        )
+    )
+
     return DatasetSingleResponse(
         data=DatasetReadModel(
             id=suitecrm_dataset["id"], owner_organisation_id=owning_reporting_org, metadata=updated_dataset
@@ -283,6 +306,8 @@ def delete_dataset(
     context: Context = request.app.state.context
 
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
+
+    trace_id: uuid.UUID = uuid.uuid4()
 
     # Fetch the original dataset record so we know which reporting org it belongs to
     ds_filters = Filter()
@@ -318,6 +343,15 @@ def delete_dataset(
 
     try:
         crm.delete_record("IATI_Datasets", str(dataset_id), headers=suitecrm_audit_headers)
+
+        context.audit_logger.info(
+            format_log_msg(
+                request,
+                user,
+                f"trace id: {trace_id} - Deleted dataset with id: {str(dataset_id)}",
+                include_client_id=True,
+            )
+        )
     except Exception:
         error_id = uuid.uuid4()
         context.app_logger.exception(

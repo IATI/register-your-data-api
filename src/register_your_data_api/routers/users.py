@@ -404,8 +404,15 @@ def update_user_role_in_reporting_org(
     context.fine_grained_auth_provider.update_user_role_for_org(user_role_for_org)
 
     context.audit_logger.info(
-        f"Request to change user id: {user_id}'s role for organisation with id: {org_id} "
-        f"to '{new_role.role}' by authorised user with id: {user.user_id_crm} succeeded."
+        format_log_msg(
+            request,
+            user,
+            (
+                f"request to change user id: {user_id}'s role for organisation with id: {org_id} "
+                f"to '{new_role.role}' by authorised user with id: {user.user_id_crm} succeeded."
+            ),
+            include_client_id=True,
+        )
     )
 
     return JSONResponse({"data": None, "error": None, "status": "success"}, 200)
@@ -487,8 +494,12 @@ def remove_user_from_reporting_org(
         context.fine_grained_auth_provider.delete_user_role_for_org(user_role_for_org)  # type: ignore
 
         context.audit_logger.info(
-            f"Request to remove user id: {user_id}'s role for organisation with id: {org_id} "
-            f"by authorised user with id: {user.user_id_crm} succeeded."
+            format_log_msg(
+                request,
+                user,
+                f"Request to remove user id: {user_id}'s from organisation with id: {org_id} succeeded",
+                include_client_id=True,
+            )
         )
     except Exception:
         context.app_logger.exception(

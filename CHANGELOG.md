@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.1] - 2026-03-17
+
+### Added
+
+ - Added the ability to search the discoverable reporting orgs.
+
 ## [0.3.0]
 
 ### Added
