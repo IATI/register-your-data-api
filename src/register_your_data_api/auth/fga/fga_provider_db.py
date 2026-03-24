@@ -1,9 +1,10 @@
+import collections
 from uuid import UUID, uuid4
 
 from sqlalchemy import Engine, delete
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel import Field, Session, SQLModel, col, create_engine, select
 
-from .fga_provider import FineGrainedAuthorisationProvider
+from .fga_provider import FineGrainedAuthorisationIntegrityError, FineGrainedAuthorisationProvider
 from .models import FineGrainedAuthorisationRole, FineGrainedAuthorisationRoleAssociation
 
 
@@ -18,6 +19,24 @@ class SuperAdminUserDbModel(SQLModel, table=True):
     id: UUID = Field(primary_key=True, default_factory=lambda: uuid4())
     user: UUID = Field(index=True)
     is_superadmin: bool
+
+
+class ToolDbModel(SQLModel, table=True):
+    id: UUID = Field(primary_key=True, default_factory=lambda: uuid4())
+    name: str
+    provider: str
+
+
+class ToolAuthorisationDbModel(SQLModel, table=True):
+    id: UUID = Field(primary_key=True, default_factory=lambda: uuid4())
+    tool: UUID = Field(foreign_key="tooldbmodel.id", index=True)
+    reporting_org: UUID = Field(index=True)
+
+
+class ToolAdminUserDbModel(SQLModel, table=True):
+    id: UUID = Field(primary_key=True, default_factory=lambda: uuid4())
+    tool: UUID = Field(foreign_key="tooldbmodel.id", index=True)
+    user: UUID = Field(index=True)
 
 
 class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
@@ -37,7 +56,24 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
                 select(FineGrainedAuthorisationDbModel).where(FineGrainedAuthorisationDbModel.user == user)
             ).all()
 
-        return [FineGrainedAuthorisationRoleAssociation(**db_fga.model_dump()) for db_fga in user_db_fgas]
+            providers_reporting_orgs = session.exec(
+                select(ToolAuthorisationDbModel.reporting_org, ToolAdminUserDbModel.user)
+                .join(ToolAdminUserDbModel, col(ToolAdminUserDbModel.tool) == col(ToolAuthorisationDbModel.tool))
+                .where(ToolAdminUserDbModel.user == user)
+            ).all()
+
+        if user_db_fgas and providers_reporting_orgs:
+            raise FineGrainedAuthorisationIntegrityError("User has both reporting org role(s) and is a tool user")
+
+        associations = [FineGrainedAuthorisationRoleAssociation(**db_fga.model_dump()) for db_fga in user_db_fgas]
+        associations += [
+            FineGrainedAuthorisationRoleAssociation(
+                reporting_org=x[0], user=x[1], role=FineGrainedAuthorisationRole.PROVIDER_ADMIN
+            )
+            for x in providers_reporting_orgs
+        ]
+
+        return associations
 
     def get_user_associations_for_org(self, reporting_org: UUID) -> list[FineGrainedAuthorisationRoleAssociation]:
         with Session(self._engine) as session:
@@ -47,7 +83,29 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
                 )
             ).all()
 
-        return [FineGrainedAuthorisationRoleAssociation(**db_fga.model_dump()) for db_fga in user_db_fgas]
+            tool_admin_users_for_org = session.exec(
+                select(ToolAuthorisationDbModel.reporting_org, ToolAdminUserDbModel.user)
+                .join(ToolAdminUserDbModel, col(ToolAdminUserDbModel.tool) == col(ToolAuthorisationDbModel.tool))
+                .where(ToolAuthorisationDbModel.reporting_org == reporting_org)
+            ).all()
+
+        associations = [FineGrainedAuthorisationRoleAssociation(**db_fga.model_dump()) for db_fga in user_db_fgas]
+        associations += [
+            FineGrainedAuthorisationRoleAssociation(
+                user=tool_admin_user_for_org[1],
+                reporting_org=reporting_org,
+                role=FineGrainedAuthorisationRole.PROVIDER_ADMIN,
+            )
+            for tool_admin_user_for_org in tool_admin_users_for_org
+        ]
+
+        if len(associations) > 1:
+            if collections.Counter([association.user for association in associations]).most_common(1)[0][1] > 1:
+                raise FineGrainedAuthorisationIntegrityError(
+                    "Reporting org has user(s) that have multiple conflicting roles"
+                )
+
+        return associations
 
     def get_user_role_for_org(self, user: UUID, org: UUID) -> FineGrainedAuthorisationRoleAssociation | None:
         with Session(self._engine) as session:
@@ -58,10 +116,27 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
                 )
             ).first()
 
-        if not user_role_for_org:
+            tool_admin_user_for_org = session.exec(
+                select(ToolAuthorisationDbModel.reporting_org, ToolAdminUserDbModel.user)
+                .join(ToolAdminUserDbModel, col(ToolAdminUserDbModel.tool) == col(ToolAuthorisationDbModel.tool))
+                .where((ToolAuthorisationDbModel.reporting_org == org) & (ToolAdminUserDbModel.user == user))
+            ).all()
+
+        if tool_admin_user_for_org and user_role_for_org:
+            raise FineGrainedAuthorisationIntegrityError("User has both reporting org role and a provider admin role")
+
+        if not user_role_for_org and not tool_admin_user_for_org:
             return None
 
-        return FineGrainedAuthorisationRoleAssociation(**user_role_for_org.model_dump())
+        if tool_admin_user_for_org:
+            association = FineGrainedAuthorisationRoleAssociation(
+                user=user, reporting_org=org, role=FineGrainedAuthorisationRole.PROVIDER_ADMIN
+            )
+
+        if user_role_for_org:
+            association = FineGrainedAuthorisationRoleAssociation(**user_role_for_org.model_dump())
+
+        return association
 
     def get_admin_users_for_org(self, org: UUID) -> list[FineGrainedAuthorisationRoleAssociation]:
         with Session(self._engine) as session:
@@ -92,12 +167,14 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
         with Session(self._engine) as session:
             session.add(user_org_role_db)
             session.commit()
+        # TODO: Check user doesn't have provider admin
 
     def update_user_role_for_org(self, user_reporting_org_role: FineGrainedAuthorisationRoleAssociation) -> None:
         user_org_role_db = FineGrainedAuthorisationDbModel(**user_reporting_org_role.model_dump())
         with Session(self._engine) as session:
             session.merge(user_org_role_db)
             session.commit()
+        # TODO: Check user doesn't have provider admin
 
     def delete_user_role_for_org(self, user_reporting_org_role: FineGrainedAuthorisationRoleAssociation) -> None:
         with Session(self._engine) as session:
