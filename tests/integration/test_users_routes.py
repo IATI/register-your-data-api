@@ -57,6 +57,18 @@ from ..helpers.utilities import find_record_in_response
             [],
             404,
         ),
+        (  # user 5 (tool user only) accessing user 0's reporting orgs
+            4,
+            "698e0c1f-4e80-faa9-6533-68de801d1735",
+            [],
+            403,
+        ),
+        (  # user 7 (provider admin and contributor) accessing their own reporting orgs
+            6,
+            "5c633101-42be-47ac-81e7-43d6ecb503e3",
+            [],
+            500,
+        ),
     ],
 )
 def test_get_users_reporting_orgs(
@@ -95,6 +107,7 @@ def test_get_users_reporting_orgs(
         (0, 403),  # Person 1 (User index 0) is an EDITOR     - shouldn't be able to edit roles
         (1, 200),  # Person 2 (User index 1) is an ADMIN      - should be able to edit roles
         (3, 403),  # Person 4 (User index 3) is a CONTRIBUTOR - shouldn't be able to edit roles
+        (4, 403),  # Person 5 (User index 4) is a PROVIDER_ADMIN - shouldn't be able to edit roles
     ],
 )
 def test_update_user_role_permissions_check(logged_in_user_idx: int, expected_status_code: int) -> None:
@@ -159,6 +172,21 @@ def test_update_user_role_org_exists_in_crm_check(
         )
 
         assert response.status_code == expected_status_code
+
+
+def test_update_user_role_cannot_be_provider_admin() -> None:
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        response = client.put(
+            "/api/v1/users/698e0c1f-4e80-faa9-6533-68de801d1735/reporting-org/552376ae-2aa7-98ab-d800-68daa9bfeb4a",
+            headers=appAndContext.get_valid_authorization_header(1),
+            json={"role": "provider_admin"},
+        )
+
+        assert response.status_code == 400
 
 
 @pytest.mark.parametrize(
@@ -227,6 +255,7 @@ def test_update_user_role_role_repaired() -> None:
         (0, 403),  # Person 1 (User index 0) is an EDITOR     - shouldn't be able to delete roles
         (1, 200),  # Person 2 (User index 1) is an ADMIN      - should be able to delete roles
         (3, 403),  # Person 4 (User index 3) is a CONTRIBUTOR - shouldn't be able to delete roles
+        (4, 403),  # Person 5 (User index 4) is a PROVIDER_ADMIN - shouldn't be able to delete roles
     ],
 )
 def test_delete_user_role_permissions_check(logged_in_user_idx: int, expected_status_code: int) -> None:

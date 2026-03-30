@@ -19,6 +19,9 @@ from register_your_data_api.auth.fga.fga_provider_db import (
     FineGrainedAuthorisationDbModel,
     FineGrainedAuthorisationProviderDb,
     SuperAdminUserDbModel,
+    ToolAdminUserDbModel,
+    ToolAuthorisationDbModel,
+    ToolDbModel,
 )
 from register_your_data_api.auth.fga.models import FineGrainedAuthorisationRole
 from register_your_data_api.client_application_details_provider import ClientApplicationDetails
@@ -180,6 +183,8 @@ class MockedAppAndContext:
 
     _mocked_reporting_org_ids: list[UUID] = []
 
+    _mocked_tool_ids: list[UUID] = []
+
     def __init__(self) -> None:
         # Generate two test keys
         self._JWKS_KEYS: dict[str, tuple[bytes, bytes, rsa.RSAPublicKey]] = {}
@@ -193,11 +198,15 @@ class MockedAppAndContext:
         self._mocked_user_ids.append(UUID("7625122c-f752-40dc-a577-5cb49e13de2a"))  # Person Four
         self._mocked_user_ids.append(UUID("b46b88bd-05e6-4cb8-8b6a-a2c47fcd666d"))  # Person Five
         self._mocked_user_ids.append(UUID("8c51d9bf-46c2-4d1d-869b-d9e2dd63ff48"))  # Person Six
+        self._mocked_user_ids.append(UUID("5c633101-42be-47ac-81e7-43d6ecb503e3"))  # Person Seven
 
         self._mocked_reporting_org_ids.append(UUID("552376ae-2aa7-98ab-d800-68daa9bfeb4a"))  # aid-agency-01
         self._mocked_reporting_org_ids.append(UUID("ab851a83-a384-3eb9-caf0-68db8125b067"))  # agency-02
         self._mocked_reporting_org_ids.append(UUID("da17734d-3926-47ef-8563-8a1b0247ed11"))  # gov agency 03
         self._mocked_reporting_org_ids.append(UUID("0a3a9507-d674-480e-b625-7d190f4f3319"))  # Agency Not in Mock CRM
+
+        self._mocked_tool_ids.append(UUID("3a9d5496-77f4-497d-bb77-2bda91285111"))  # Tool One
+        self._mocked_tool_ids.append(UUID("6a2d1ca1-b9c2-4bd3-a2a5-099178d1358d"))  # Tool Two
 
         self._mocked_context = make_test_context(self)  # type: ignore
 
@@ -323,16 +332,20 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
 
     with sqlmodel.Session(test_context._fga_provider._engine) as session:
 
-        # Pesron One / User index 0   = UUID("698e0c1f-4e80-faa9-6533-68de801d1735")
+        # Person One / User index 0   = UUID("698e0c1f-4e80-faa9-6533-68de801d1735")
         # Person Two / User index 1   = UUID("bea511d3-c7a7-4097-55ed-68de81e94921")
         # Person Three / User index 2 = UUID("a1b191ee-4c12-461c-cbe1-68de8173f628")
         # Person Four / User index 3  = UUID("7625122c-f752-40dc-a577-5cb49e13de2a")
         # Person Five / User index 4  = UUID("b46b88bd-05e6-4cb8-8b6a-a2c47fcd666d")
+        # Person Seven / User index 6  = UUID("5c633101-42be-47ac-81e7-43d6ecb503e3")
 
         # Aid Agency 01 / index 0 = UUID("552376ae-2aa7-98ab-d800-68daa9bfeb4a")
         # Agency 02     / index 1 = UUID("ab851a83-a384-3eb9-caf0-68db8125b067")
         # Gov Agency 03 / index 2 = UUID("da17734d-3926-47ef-8563-8a1b0247ed11")
         # Agency Not in Mock CRM / index 3 = UUID("0a3a9507-d674-480e-b625-7d190f4f3319")
+
+        # Tool One / index 0 = UUID("3a9d5496-77f4-497d-bb77-2bda91285111") [access to Aid Agency 01 and Agency 02]
+        # Tool Two / index 1 = UUID("6a2d1ca1-b9c2-4bd3-a2a5-099178d1358d") [no access to orgs]
 
         # Add user 1 roles.
         session.add(
@@ -399,20 +412,39 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
             )
         )
 
-        # Add User 5 roles
+        # Add tools.
+        session.add(ToolDbModel(id=app_and_context._mocked_tool_ids[0], name="Tool One", provider="Tool Maker"))
         session.add(
-            FineGrainedAuthorisationDbModel(
-                user=app_and_context._mocked_user_ids[4],
-                reporting_org=app_and_context._mocked_reporting_org_ids[0],
-                role=FineGrainedAuthorisationRole.PROVIDER_ADMIN,
+            ToolAuthorisationDbModel(
+                tool=app_and_context._mocked_tool_ids[0], reporting_org=app_and_context._mocked_reporting_org_ids[0]
             )
         )
         session.add(
-            FineGrainedAuthorisationDbModel(
-                user=app_and_context._mocked_user_ids[4],
-                reporting_org=app_and_context._mocked_reporting_org_ids[1],
-                role=FineGrainedAuthorisationRole.PROVIDER_ADMIN,
+            ToolAuthorisationDbModel(
+                tool=app_and_context._mocked_tool_ids[0], reporting_org=app_and_context._mocked_reporting_org_ids[1]
             )
+        )
+        session.add(ToolDbModel(id=app_and_context._mocked_tool_ids[1], name="Tool Two", provider="Tool Maker"))
+
+        # Person Five is a user for both tools.
+        session.add(
+            ToolAdminUserDbModel(tool=app_and_context._mocked_tool_ids[0], user=app_and_context._mocked_user_ids[4])
+        )
+        session.add(
+            ToolAdminUserDbModel(tool=app_and_context._mocked_tool_ids[1], user=app_and_context._mocked_user_ids[4])
+        )
+
+        # Person Seven is a failure case as they have both a role in organisation
+        # da17734d-3926-47ef-8563-8a1b0247ed11 and provider admin for tool 1.
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=app_and_context._mocked_user_ids[6],
+                reporting_org=app_and_context._mocked_reporting_org_ids[2],
+                role=FineGrainedAuthorisationRole.CONTRIBUTOR,
+            )
+        )
+        session.add(
+            ToolAdminUserDbModel(tool=app_and_context._mocked_tool_ids[0], user=app_and_context._mocked_user_ids[6])
         )
 
         session.commit()

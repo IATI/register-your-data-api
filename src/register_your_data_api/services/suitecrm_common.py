@@ -4,7 +4,10 @@ from libsuitecrm import Filter, RequestFailed, SuiteCRM  # type: ignore
 
 from register_your_data_api.auth import models as auth_models
 from register_your_data_api.auth.fga import models as fga_models
-from register_your_data_api.auth.fga.fga_provider import FineGrainedAuthorisationProvider
+from register_your_data_api.auth.fga.fga_provider import (
+    FineGrainedAuthorisationIntegrityError,
+    FineGrainedAuthorisationProvider,
+)
 from register_your_data_api.data_handling.converters import (
     get_discoverable_reporting_org_meta_from_suitecrm_response,
     get_fga_role_as_str,
@@ -20,7 +23,7 @@ from register_your_data_api.exceptions import RYDUserException
 from register_your_data_api.util import Context
 
 
-def get_reporting_orgs_for_user(
+def get_reporting_orgs_for_user(  # noqa: C901
     context: Context,
     requesting_user: auth_models.UserAndCredentials,
     user_to_fetch: uuid.UUID,
@@ -66,7 +69,19 @@ def get_reporting_orgs_for_user(
 
     total_records = orgs_for_user.get("meta", {}).get("total-records", 0)
 
-    users_roles = fga_provider.get_user_fine_grained_permissions(user_to_fetch)
+    try:
+        users_roles = fga_provider.get_user_fine_grained_permissions(user_to_fetch)
+    except FineGrainedAuthorisationIntegrityError as exc:
+        trace_id: uuid.UUID = uuid.uuid4()
+        raise RYDUserException(
+            requesting_user.user_id_crm,
+            requesting_user.client_id,
+            500,
+            app_msg=f"FGA Database integrity error with traceid={trace_id}",
+            audit_msg=f"FGA Database integrity error ({exc}) with traceid={trace_id}",
+            public_msg="There is a problem with your credentials.  Please report this error to the provider "
+            f"of the tool you are using to access the IATI Registry quoting trace ID {trace_id}.",
+        )
 
     reporting_orgs_list: list[UserReportingOrgRelation | UserReportingOrgDiscoverableMetadataRelation] = []
 

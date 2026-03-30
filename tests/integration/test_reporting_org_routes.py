@@ -13,7 +13,7 @@ from ..helpers.utilities import find_record_in_response, is_valid_uuid
 
 
 @pytest.mark.parametrize(
-    "user,reporting_org_details",
+    "user,reporting_org_details,status_code",
     [
         (
             0,
@@ -21,6 +21,7 @@ from ..helpers.utilities import find_record_in_response, is_valid_uuid
                 ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01"),
                 ("ab851a83-a384-3eb9-caf0-68db8125b067", "agency-02"),
             ],
+            200,
         ),
         (
             1,
@@ -28,14 +29,28 @@ from ..helpers.utilities import find_record_in_response, is_valid_uuid
                 ("552376ae-2aa7-98ab-d800-68daa9bfeb4a", "aid-agency-01"),
                 ("da17734d-3926-47ef-8563-8a1b0247ed11", "gov-agency-03"),
             ],
+            200,
         ),
         (
             2,
             [],
+            200,
+        ),
+        (
+            4,
+            [],
+            200,
+        ),
+        (
+            6,
+            [],
+            500,
         ),
     ],
 )
-def test_reporting_orgs_fetch_correct_orgs_for_user(user: int, reporting_org_details: list[tuple[str, str]]) -> None:
+def test_reporting_orgs_fetch_correct_orgs_for_user(
+    user: int, reporting_org_details: list[tuple[str, str]], status_code: int
+) -> None:
 
     appAndContext = MockedAppAndContext()
 
@@ -48,17 +63,18 @@ def test_reporting_orgs_fetch_correct_orgs_for_user(user: int, reporting_org_det
             params={},
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status_code
 
-        resp_as_object = json.loads(response.content)
+        if response.status_code != 500:
+            resp_as_object = json.loads(response.content)
 
-        assert len(resp_as_object["data"]) == len(reporting_org_details)
+            assert len(resp_as_object["data"]) == len(reporting_org_details)
 
-        for reporting_org in reporting_org_details:
-            reporting_org_response_object = find_record_in_response(resp_as_object, reporting_org[0])
+            for reporting_org in reporting_org_details:
+                reporting_org_response_object = find_record_in_response(resp_as_object, reporting_org[0])
 
-            assert reporting_org_response_object is not None
-            assert reporting_org_response_object["metadata"]["short_name"] == reporting_org[1]
+                assert reporting_org_response_object is not None
+                assert reporting_org_response_object["metadata"]["short_name"] == reporting_org[1]
 
 
 def test_reporting_orgs_fetch_correct_org_info_for_admin_and_editor() -> None:
@@ -177,6 +193,13 @@ def test_reporting_org_detail_handles_non_uuid() -> None:
         (2, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200),
         (2, "ab851a83-a384-3eb9-caf0-68db8125b067", 200),
         (2, "01234567-0000-1111-2222-0123456789ab", 404),
+        (4, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200),
+        (4, "ab851a83-a384-3eb9-caf0-68db8125b067", 200),
+        (4, "da17734d-3926-47ef-8563-8a1b0247ed11", 403),
+        (4, "01234567-0000-1111-2222-0123456789ab", 403),
+        (6, "da17734d-3926-47ef-8563-8a1b0247ed11", 500),
+        (6, "ab851a83-a384-3eb9-caf0-68db8125b067", 500),
+        (6, "01234567-0000-1111-2222-0123456789ab", 500),
     ],
 )
 def test_reporting_org_detail_check_user_access(user: int, reporting_org_id: str, status_code: int) -> None:
@@ -198,7 +221,7 @@ def test_reporting_org_detail_check_user_access(user: int, reporting_org_id: str
     "users,reporting_org_id,reporting_org_details",
     [
         (
-            [0, 1, 2],
+            [0, 1, 2, 4],
             "552376ae-2aa7-98ab-d800-68daa9bfeb4a",
             {
                 "data_portal_url": "http://data-portal.com",
@@ -215,7 +238,7 @@ def test_reporting_org_detail_check_user_access(user: int, reporting_org_id: str
             },
         ),
         (
-            [0, 2],
+            [0, 2, 4],
             "ab851a83-a384-3eb9-caf0-68db8125b067",
             {
                 "data_portal_url": "",
@@ -276,9 +299,16 @@ def test_reporting_org_detail_check_values(
             assert reporting_org_response_object["metadata"]["website"] is not None
 
 
-@pytest.mark.parametrize("user", [0, 1, 2])
-def test_reporting_org_create(user: int) -> None:
-
+@pytest.mark.parametrize(
+    "user,status_code,expect_success",
+    [
+        (0, 201, True),
+        (1, 201, True),
+        (2, 201, True),  # TODO: we should prevent this in the future.
+        (4, 201, True),  # TODO: we should prevent this in the future.
+    ],
+)
+def test_reporting_org_create(user: int, status_code: int, expect_success: bool) -> None:
     appAndContext = MockedAppAndContext()
 
     fastAPIapp = appAndContext.get_test_app()
@@ -309,30 +339,31 @@ def test_reporting_org_create(user: int) -> None:
             content=json.dumps(new_reporting_org),
         )
 
-        assert response.status_code == 201
+        assert response.status_code == status_code
 
         response_obj = json.loads(response.content)
 
-        assert response_obj["status"] == "success"
+        if expect_success:
+            assert response_obj["status"] == "success"
 
-        assert is_valid_uuid(response_obj["data"]["id"])
-        assert response_obj["data"]["user_role"] == "admin"
+            assert is_valid_uuid(response_obj["data"]["id"])
+            assert response_obj["data"]["user_role"] == "admin"
 
-        for field in new_reporting_org.keys():
-            assert response_obj["data"]["metadata"][field] == new_reporting_org[field]
+            for field in new_reporting_org.keys():
+                assert response_obj["data"]["metadata"][field] == new_reporting_org[field]
 
-        for derived_field in [
-            "created_date",
-            "first_publication_date",
-            "number_of_published_datasets",
-            "registry_approved",
-        ]:
-            assert derived_field in response_obj["data"]["metadata"].keys()
+            for derived_field in [
+                "created_date",
+                "first_publication_date",
+                "number_of_published_datasets",
+                "registry_approved",
+            ]:
+                assert derived_field in response_obj["data"]["metadata"].keys()
 
-        assert isinstance(response_obj["data"]["metadata"]["registry_approved"], bool)
+            assert isinstance(response_obj["data"]["metadata"]["registry_approved"], bool)
 
 
-@pytest.mark.parametrize("user", [0, 1, 2])
+@pytest.mark.parametrize("user", [0, 1, 2, 4])
 def test_reporting_org_create_with_missing_fields(user: int) -> None:
 
     appAndContext = MockedAppAndContext()
@@ -459,6 +490,14 @@ def test_reporting_org_delete(user: int, status_code: int) -> None:
         (2, "ab851a83-a384-3eb9-caf0-68db8125b067", 200, "success", 2),
         (2, "92f398c1-6163-f097-3ded-68e9138bb9c8", 404, "failed", -1),
         (2, "da17734d-3926-47ef-8563-8a1b0247ed11", 200, "success", 0),
+        (4, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200, "success", 1),
+        (4, "ab851a83-a384-3eb9-caf0-68db8125b067", 200, "success", 2),
+        (4, "92f398c1-6163-f097-3ded-68e9138bb9c8", 403, "failed", -1),
+        (4, "da17734d-3926-47ef-8563-8a1b0247ed11", 403, "failed", -1),
+        (6, "da17734d-3926-47ef-8563-8a1b0247ed11", 500, "failed", -1),
+        (6, "ab851a83-a384-3eb9-caf0-68db8125b067", 500, "failed", -1),
+        (6, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 500, "failed", -1),
+        (6, "92f398c1-6163-f097-3ded-68e9138bb9c8", 500, "failed", -1),
     ],
 )
 def test_reporting_org_list_datasets(
@@ -618,10 +657,11 @@ def test_reporting_org_list_datasets_detail(
                 "bea511d3-c7a7-4097-55ed-68de81e94921",
                 "7625122c-f752-40dc-a577-5cb49e13de2a",
                 "b46b88bd-05e6-4cb8-8b6a-a2c47fcd666d",
+                "5c633101-42be-47ac-81e7-43d6ecb503e3",
             },
         ),
         (
-            4,  # user 4 / person 5 is PROVIDER_ADMIN for 552376ae-2aa7-98ab-d800-68daa9bfeb4a
+            4,  # user 4 / person 5 is PROVIDER_ADMIN for Tool 1 with access to 552376ae-2aa7-98ab-d800-68daa9bfeb4a
             "552376ae-2aa7-98ab-d800-68daa9bfeb4a",
             False,
             {
@@ -629,6 +669,7 @@ def test_reporting_org_list_datasets_detail(
                 "bea511d3-c7a7-4097-55ed-68de81e94921",
                 "7625122c-f752-40dc-a577-5cb49e13de2a",
                 "b46b88bd-05e6-4cb8-8b6a-a2c47fcd666d",
+                "5c633101-42be-47ac-81e7-43d6ecb503e3",
             },
         ),
         (0, "da17734d-3926-47ef-8563-8a1b0247ed11", True, []),
