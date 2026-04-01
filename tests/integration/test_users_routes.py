@@ -276,7 +276,7 @@ def test_delete_user_role_cannot_delete_last_admin_user(logged_in_user_idx: int,
 
     with TestClient(fastAPIapp) as client:
         response = client.delete(
-            "/api/v1/users/bea511d3-c7a7-4097-55ed-68de81e94921/reporting-org/698e0c1f-4e80-faa9-6533-68de801d1735",
+            "/api/v1/users/bea511d3-c7a7-4097-55ed-68de81e94921/reporting-org/552376ae-2aa7-98ab-d800-68daa9bfeb4a",
             headers=appAndContext.get_valid_authorization_header(logged_in_user_idx),
         )
 
