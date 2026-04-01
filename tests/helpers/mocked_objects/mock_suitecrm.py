@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 import uuid
@@ -15,6 +16,7 @@ class MockSuiteCRM:
     - get_records()   - the ID is accepted as normal parameter, and the data returns is read from
                         appropriate file in tests/artefacts/suitecrm-mocked-responses
     - create_record() - it just returns the data it was passed in the format returned by SuiteCRM
+    - update_record() - for IATI_Datasets it returns the data it was passed, in the format returned by SuiteCRM
     """
 
     def __init__(self) -> None:
@@ -36,7 +38,7 @@ class MockSuiteCRM:
                 v = operator[1]
         return v
 
-    def get_records(
+    def get_records(  # noqa: C901
         self,
         module_name: str,
         fields: list[str] | None = None,
@@ -58,8 +60,28 @@ class MockSuiteCRM:
         elif module_name == "IATI_Datasets":
 
             reporting_org_id = self.get_filter_value(filters, "filter[iati_dataset_owner_org_id][eq]", "empty")
+            dataset_id = self.get_filter_value(filters, "filter[id][eq]", "empty")
 
-            file = f"tests/artefacts/suitecrm-mocked-responses/get_records_datasets_for_ro_{reporting_org_id}.json"
+            # If we are provided with a dataset id to find then we have to parse all
+            # the JSON responses for datasets (one response file per reporting org)
+            # and find the requested id.  If it is found we put it directly in the response.
+            if reporting_org_id == "empty" and dataset_id != "empty":
+                for dataset_file in glob.glob(
+                    "tests/artefacts/suitecrm-mocked-responses/get_records_datasets_for_ro_*.json"
+                ):
+                    try:
+                        fh = open(dataset_file, "r")
+                        for data in json.load(fh).get("data", []):
+                            if data["type"] == "IATI_Dataset" and data["id"] == dataset_id:
+                                response["data"].append(data)
+                        fh.close()
+                    except Exception:
+                        raise RuntimeError(
+                            "Unexpected error loading mocked SuiteCRM response from file {dataset_file}"
+                        )
+
+            else:
+                file = f"tests/artefacts/suitecrm-mocked-responses/get_records_datasets_for_ro_{reporting_org_id}.json"
 
         elif module_name == "Contacts":
 
@@ -74,12 +96,13 @@ class MockSuiteCRM:
         if not os.path.isfile(file):
             file = "tests/artefacts/suitecrm-mocked-responses/get_records_empty.json"
 
-        try:
-            with open(file, "r") as fh:
-                content = fh.read()
-                response = json.loads(content)
-        except Exception:
-            raise RuntimeError("Unexpected error loading mocked SuiteCRM response from file {file}")
+        if not response["data"]:
+            try:
+                with open(file, "r") as fh:
+                    content = fh.read()
+                    response = json.loads(content)
+            except Exception:
+                raise RuntimeError("Unexpected error loading mocked SuiteCRM response from file {file}")
 
         return response
 
@@ -100,8 +123,15 @@ class MockSuiteCRM:
 
     def update_record(
         self, module_name: str, id: str, data: dict[str, Any], headers: dict[str, str] | None = None
-    ) -> None:
-        return None
+    ) -> dict[str, Any]:
+        if "IATI_Dataset" in module_name:
+            return {
+                "id": id,
+                "type": "IATI_Datasets",
+                "attributes": {"iati_url_update_date": "", "iati_metadata_update_date": "", **data},
+            }
+
+        return {}
 
     def delete_record(self, module_name: str, id: str, headers: dict[str, str] | None = None) -> None:
         return None
