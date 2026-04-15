@@ -502,8 +502,6 @@ def get_reporting_org_users(
         if u["id"] in user_ids_from_fga
     }
 
-    user_ids_in_fga_not_suitecrm = user_ids_from_fga - {*names_emails_from_suitecrm.keys()}
-
     # iterate over the provider admins, and add their names/emails to the dict
     for provider_admin in users_for_org_from_fga:
         if provider_admin.role == fga_models.FineGrainedAuthorisationRole.PROVIDER_ADMIN:
@@ -516,15 +514,36 @@ def get_reporting_org_users(
                     crm_user["data"][0]["attributes"]["email1"],
                 )
 
+    user_ids_in_fga_not_suitecrm = user_ids_from_fga - {*names_emails_from_suitecrm.keys()}
     if user_ids_in_fga_not_suitecrm:
-        error_message = (
-            f"GET request to reporting-orgs/{org_id}/users by user id: {user.user_id_crm} "
-            f"but the following users associated with reporting org {org_id} in the FGA data "
-            f"store are not associated with that org in SuiteCRM: {user_ids_in_fga_not_suitecrm}"
-        )
-        context.app_logger.error(error_message)
-        context.audit_logger.error(error_message)
-        raise fastapi.HTTPException(500)
+        if any(
+            [
+                u.role != fga_models.FineGrainedAuthorisationRole.PROVIDER_ADMIN and u.user == uuid.UUID(user_id)
+                for u in users_for_org_from_fga
+                for user_id in user_ids_in_fga_not_suitecrm
+            ]
+        ):
+            trace_id: uuid.UUID = uuid.uuid4()
+            raise RYDUserException(
+                user.user_id_crm,
+                user.client_id,
+                500,
+                app_msg=(
+                    f"GET request to reporting-orgs/{org_id}/users has found "
+                    f"users that are not associated with that org in SuiteCRM: {user_ids_in_fga_not_suitecrm}. "
+                    f"Trace id: {trace_id}"
+                ),
+                audit_msg=(
+                    f"GET request to reporting-orgs/{org_id}/users by user id: {user.user_id_crm} "
+                    f"but the following users associated with reporting org {org_id} in the FGA data "
+                    f"store are not associated with that org in SuiteCRM: {user_ids_in_fga_not_suitecrm}. "
+                    f"Trace id: {trace_id}"
+                ),
+                public_msg=(
+                    "There is a problem getting the user list associated with this organisation. "
+                    f"Please contact IATI Support quoting this error trace id: {trace_id}"
+                ),
+            )
 
     users_for_org = [
         CRMUser(

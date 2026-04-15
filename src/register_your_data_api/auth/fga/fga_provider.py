@@ -4,6 +4,10 @@ from uuid import UUID
 from .models import FineGrainedAuthorisationRoleAssociation
 
 
+class FineGrainedAuthorisationIntegrityError(Exception):
+    pass
+
+
 class FineGrainedAuthorisationProvider(ABC):
 
     @abstractmethod

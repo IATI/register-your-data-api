@@ -104,3 +104,42 @@ def test_dataset_update_with_invalid_short_name(invalid_short_name: str) -> None
         response_obj = response_update.json()
 
         assert response_obj["status"] == "failed"
+
+
+@pytest.mark.parametrize(
+    "user,status_code",
+    [
+        (0, 403),  # Editor
+        (1, 200),  # Admin
+        (2, 200),  # Superadmin
+        (3, 403),  # Contributor
+        (4, 200),  # Provider admin
+        (6, 500),  # Failure case, user is both provider admin and has an org role
+    ],
+)
+def test_change_dataset_visibility(user: int, status_code: int) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+
+        # The dataset we try to patch is set to public in the suitecrm
+        # artefacts, so here we try to change the visibility to private.
+        response = client.patch(
+            "/api/v1/datasets/52ac525f-6375-079b-977d-68ecf3be2868",
+            headers=appAndContext.get_valid_authorization_header(user),
+            content=json.dumps(
+                {
+                    "human_readable_name": "Aid Agency - Dataset 01",
+                    "licence_id": "cc-zero",
+                    "short_name": "aidagy-data-01",
+                    "source_type": "primary_source",
+                    "url": "http://aidagency.com/dataset-01.xml",
+                    "visibility": "private",
+                }
+            ),
+        )
+
+        assert response.status_code == status_code
