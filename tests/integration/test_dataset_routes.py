@@ -182,3 +182,31 @@ def test_create_dataset(user: int, status_code: int, organisation_id: str) -> No
         )
 
         assert response.status_code == status_code
+
+
+@pytest.mark.parametrize(
+    "user,status_code,dataset_id",
+    [
+        (0, 200, "52ac525f-6375-079b-977d-68ecf3be2868"),  # Editor of org
+        (1, 200, "52ac525f-6375-079b-977d-68ecf3be2868"),  # Admin of org
+        (2, 200, "52ac525f-6375-079b-977d-68ecf3be2868"),  # Superadmin
+        (3, 403, "52ac525f-6375-079b-977d-68ecf3be2868"),  # Contributor of org
+        (3, 403, "4ad2b196-aa31-983e-93d9-68ecf476a2c6"),  # Contributor pending in org
+        (4, 200, "52ac525f-6375-079b-977d-68ecf3be2868"),  # Provider admin via Tool One
+        (6, 500, "52ac525f-6375-079b-977d-68ecf3be2868"),  # Failure: has provider admin and org role
+    ],
+)
+def test_delete_dataset(user: int, status_code: int, dataset_id: str) -> None:
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+
+        response = client.delete(
+            f"/api/v1/datasets/{dataset_id}",
+            headers=appAndContext.get_valid_authorization_header(user),
+        )
+
+        assert response.status_code == status_code
