@@ -19,6 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.4] - 2026-04-20
+
+### Fixed
+
+ - Dataset creation endpoint now returns 201 rather than 200.
+
+### Changed
+
+ - Permissions for provider admin user role.
+
+### Added
+
+ - Integration tests for creating and deleting datasets, and updating organisations.
+
+
 ## [0.3.3] - 2026-04-15
 
 ### Added
