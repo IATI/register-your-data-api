@@ -139,6 +139,12 @@ class MockSuiteCRM:
                 "type": "IATI_Datasets",
                 "attributes": {"iati_url_update_date": "", "iati_metadata_update_date": "", **data},
             }
+        if "Account" in module_name:
+            return {
+                "id": id,
+                "type": "Accounts",
+                "attributes": {**data},
+            }
 
         return {}
 
