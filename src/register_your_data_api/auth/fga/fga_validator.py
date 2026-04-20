@@ -25,9 +25,12 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
         ]
         permissions[FineGrainedAuthorisationRole.PROVIDER_ADMIN] = [
             "read-org",
+            "update-org",
             "read-dataset",
+            "create-dataset",
             "update-dataset",
             "update-dataset-visibility",
+            "delete-dataset",
         ]
         permissions[FineGrainedAuthorisationRole.ADMIN] = [
             *permissions[FineGrainedAuthorisationRole.EDITOR],
