@@ -87,7 +87,7 @@ def test_dataset_update_with_invalid_short_name(invalid_short_name: str) -> None
             content=json.dumps(dataset),
         )
 
-        assert response_create.status_code == 200
+        assert response_create.status_code == 201
 
         resp_create_obj = response_create.json()
 

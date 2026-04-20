@@ -32,7 +32,7 @@ from ..data_handling.data_schemas import (
 router = fastapi.APIRouter(prefix="/api/v1/datasets")
 
 
-@router.post("")
+@router.post("", status_code=201)
 def create_dataset(
     request: starlette.requests.Request,
     dataset: DatasetCreateModel,
