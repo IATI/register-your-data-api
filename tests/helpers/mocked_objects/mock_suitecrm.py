@@ -109,17 +109,26 @@ class MockSuiteCRM:
     def create_record(
         self, module_name: str, data: dict[str, Any], headers: dict[str, str] | None = None
     ) -> dict[str, Any]:
-        return {
-            "id": str(uuid.uuid4()),
-            "attributes": {
-                "created_date": get_current_timestamp_as_str(),
-                "first_publication_date": "",
-                "registry_approved": "0",
-                "iati_url_update_date": "",
-                "iati_metadata_update_date": "",
-                **data,
-            },
-        }
+        if "IATI_Dataset" in module_name:
+            return {
+                "id": str(uuid.uuid4()),
+                "type": "IATI_Datasets",
+                "attributes": {"iati_url_update_date": "", "iati_metadata_update_date": "", **data},
+            }
+        elif "Account" in module_name:
+            return {
+                "id": str(uuid.uuid4()),
+                "attributes": {
+                    "created_date": get_current_timestamp_as_str(),
+                    "first_publication_date": "",
+                    "registry_approved": "0",
+                    "iati_url_update_date": "",
+                    "iati_metadata_update_date": "",
+                    **data,
+                },
+            }
+
+        return {}
 
     def update_record(
         self, module_name: str, id: str, data: dict[str, Any], headers: dict[str, str] | None = None
@@ -129,6 +138,12 @@ class MockSuiteCRM:
                 "id": id,
                 "type": "IATI_Datasets",
                 "attributes": {"iati_url_update_date": "", "iati_metadata_update_date": "", **data},
+            }
+        if "Account" in module_name:
+            return {
+                "id": id,
+                "type": "Accounts",
+                "attributes": {**data},
             }
 
         return {}

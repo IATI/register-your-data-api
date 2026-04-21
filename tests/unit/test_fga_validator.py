@@ -28,13 +28,13 @@ def test_provider_admin() -> None:
 
     assert v.user_can_create_reporting_org()
 
-    assert not v.user_can_update_reporting_org(org1)
+    assert v.user_can_update_reporting_org(org1)
     assert not v.user_can_update_reporting_org(org2)
 
     assert not v.user_can_delete_reporting_org(org1)
     assert not v.user_can_delete_reporting_org(org2)
 
-    assert not v.user_can_create_reporting_org_datasets(org1)
+    assert v.user_can_create_reporting_org_datasets(org1)
     assert not v.user_can_create_reporting_org_datasets(org2)
 
     assert v.user_can_update_reporting_org_datasets(org1)
@@ -43,7 +43,7 @@ def test_provider_admin() -> None:
     assert v.user_can_update_reporting_org_dataset_visibility(org1)
     assert not v.user_can_update_reporting_org_dataset_visibility(org2)
 
-    assert not v.user_can_delete_reporting_org_datasets(org1)
+    assert v.user_can_delete_reporting_org_datasets(org1)
     assert not v.user_can_delete_reporting_org_datasets(org2)
 
     assert not v.user_can_modify_user_roles_for_reporting_org(org1)

@@ -461,6 +461,44 @@ def test_reporting_org_create_with_invalid_short_name(invalid_short_name: str) -
         assert response_obj["status"] == "failed"
 
 
+@pytest.mark.parametrize(
+    "user,status_code,organisation_id",
+    [
+        (0, 200, "552376ae-2aa7-98ab-d800-68daa9bfeb4a"),  # Editor of org
+        (1, 200, "552376ae-2aa7-98ab-d800-68daa9bfeb4a"),  # Admin of org
+        (2, 200, "552376ae-2aa7-98ab-d800-68daa9bfeb4a"),  # Superadmin
+        (3, 403, "552376ae-2aa7-98ab-d800-68daa9bfeb4a"),  # Contributor of org
+        (3, 403, "ab851a83-a384-3eb9-caf0-68db8125b067"),  # Contributor pending in org
+        (4, 200, "552376ae-2aa7-98ab-d800-68daa9bfeb4a"),  # Provider admin via Tool One
+        (4, 403, "da17734d-3926-47ef-8563-8a1b0247ed11"),  # Provider admin but Tool has no permission for org
+        (6, 500, "552376ae-2aa7-98ab-d800-68daa9bfeb4a"),  # Failure: has provider admin and org role
+    ],
+)
+def test_reporting_org_update(user: int, status_code: int, organisation_id: str) -> None:
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        # Get the organisation record using the superadmin user, so we have the record
+        # to tweak and test the actual user.
+        response = client.get(
+            f"/api/v1/reporting-orgs/{organisation_id}",
+            headers=appAndContext.get_valid_authorization_header(2),
+        )
+
+        assert response.status_code == 200
+
+        payload = response.json()
+        payload["contact_email"] = "changed.email@example.org"
+
+        response = client.patch(
+            f"/api/v1/reporting-orgs/{organisation_id}",
+            headers=appAndContext.get_valid_authorization_header(user),
+            content=json.dumps(payload),
+        )
+
+
 @pytest.mark.parametrize("user,status_code", [(0, 403), (1, 200), (2, 200), (3, 403), (4, 403)])
 def test_reporting_org_delete(user: int, status_code: int) -> None:
     appAndContext = MockedAppAndContext()
