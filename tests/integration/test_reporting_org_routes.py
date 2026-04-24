@@ -745,3 +745,38 @@ def test_reporting_org_list_users(
             users_returned = {user["id"] for user in resp_json["data"]}
 
             assert users_returned == visible_users
+
+
+def test_reporting_org_tool_management_not_implemented() -> None:
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        # When implemented, this call should return a list of tools that have permission to
+        # edit records for an organisation.
+        response = client.get(
+            "/api/v1/reporting-orgs/ab851a83-a384-3eb9-caf0-68db8125b067/tools",
+            headers=appAndContext.get_valid_authorization_header(0),
+        )
+
+        assert response.status_code == 501
+
+        # When implemented, this call should authorise a tool to have permission to edit
+        # records for this organisation.
+        response = client.post(
+            "/api/v1/reporting-orgs/ab851a83-a384-3eb9-caf0-68db8125b067/tools",
+            headers=appAndContext.get_valid_authorization_header(0),
+            json={"tid": "6a2d1ca1-b9c2-4bd3-a2a5-099178d1358d"},
+        )
+
+        assert response.status_code == 501
+
+        # When implemented, this call should revoke permission for this tool to have
+        # permission to edit records for this organisation.
+        response = client.delete(
+            "/api/v1/reporting-orgs/ab851a83-a384-3eb9-caf0-68db8125b067/tools/6a2d1ca1-b9c2-4bd3-a2a5-099178d1358d",
+            headers=appAndContext.get_valid_authorization_header(0),
+        )
+
+        assert response.status_code == 501
