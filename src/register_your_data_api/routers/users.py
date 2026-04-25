@@ -22,12 +22,14 @@ from register_your_data_api.services.suitecrm_common import get_reporting_orgs_f
 
 from ..auth import authz
 from ..auth.models import UserAndCredentials
-from ..data_handling.converters import get_fga_role_from_str
+from ..data_handling.converters import get_fga_role_as_str, get_fga_role_from_str
 from ..data_handling.data_schemas import (
     OrganisationId,
     PaginationQueryParams,
     UserReportingOrgDiscoverableMetadataRelation,
     UserReportingOrgRelation,
+    UserRolesData,
+    UserRolesResponse,
     UserRoleUpdateModel,
 )
 from ..exception_handlers import format_log_msg
@@ -383,7 +385,7 @@ def update_user_role_in_reporting_org(
     # 7. Check whether there is an existing FGA entry for this user and reporting org
     user_roles_for_org = context.fine_grained_auth_provider.get_user_roles_for_org(user_id, org_id)
 
-    if user_roles_for_org is None:
+    if len(user_roles_for_org) == 0:
         context.app_logger.error(
             f"Unexpected error: user with id: {user.user_id_crm} attempted to change user id: {user_id}'s role in "
             f"organisation with id: {org_id} but the user has no entry in the FGA DB for this organisation. "
@@ -522,7 +524,7 @@ def remove_user_from_reporting_org(
         user.user_id_crm,
         user.client_id,
         condition_func=lambda: not (
-            user_roles_for_org[0].role == FineGrainedAuthorisationRole.ADMIN and number_admins == 1  # type: ignore
+            user_roles_for_org[0].role == FineGrainedAuthorisationRole.ADMIN and number_admins == 1
         ),
         public_msg=(
             f"User id: {user_id} is the last admin user associated with "
@@ -537,7 +539,7 @@ def remove_user_from_reporting_org(
 
     # 5. Delete the user's role in the FGA database
     try:
-        context.fine_grained_auth_provider.delete_user_role_for_org(user_roles_for_org[0])  # type: ignore
+        context.fine_grained_auth_provider.delete_user_role_for_org(user_roles_for_org[0])
 
         context.audit_logger.info(
             format_log_msg(
@@ -563,3 +565,69 @@ def remove_user_from_reporting_org(
         )
 
     return JSONResponse({"data": None, "error": None, "status": "success"}, 200)
+
+
+@router.get("/{user_id}/roles")
+def get_user_roles(
+    user_id: uuid.UUID,
+    request: starlette.requests.Request,
+    user: UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd"]),
+) -> UserRolesResponse:
+    """Get a list of the roles a user has."""
+
+    context: Context = request.app.state.context
+
+    crm: SuiteCRM = context.suitecrm_client_factory.get_client()
+    # import pdb
+    # breakpoint()
+    # 1. Verify that the logged in user is the same as the requested user, unless the caller is superadmin.
+    assert_precondition_met(
+        user.user_id_crm,
+        user.client_id,
+        condition_func=lambda: (str(user_id) == user.user_id_crm) or (user.validator.is_superadmin),
+        public_msg="Requesting user attempting to access roles for another user and is not superadmin.",
+        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+        audit_log_msg=(
+            f"user id: {user.user_id_crm} - GET /users/{user_id}/roles - Request to read user roles "
+            f"user {user_id} but the user is not a superadmin."
+        ),
+    )
+
+    # 2. Check that the requested user exists in CRM
+    assert_precondition_met(
+        user.user_id_crm,
+        user.client_id,
+        condition_func=lambda: check_crm_record_exists(crm, "Contacts", str(user_id)),
+        public_msg=f"There is no user with ID {str(user_id)}.",
+        status_code=fastapi.status.HTTP_404_NOT_FOUND,
+        audit_log_msg=(
+            f"user id: {user.user_id_crm} - GET /users/{user_id}reporting-orgs - Request to read reporting orgs for "
+            f"user {user_id} but there is no such user in the CRM."
+        ),
+    )
+
+    user_roles = UserRolesData(
+        superadmin=user.validator.is_superadmin,
+        tools=[x.id for x in user.validator.get_users_provider_admin_tools()],
+        reporting_orgs={
+            association.reporting_org: get_fga_role_as_str(association.role)
+            for association in user.validator.get_users_fine_grained_associations()
+        },
+    )
+
+    return UserRolesResponse(error=None, status="success", data=user_roles)
+
+
+@router.get("/{user_id}/roles/reporting-org-permissions/{org_id}")
+def get_user_fga_for_reporting_org(
+    user_id: uuid.UUID,
+    org_id: uuid.UUID,
+    request: starlette.requests.Request,
+    user: UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd"]),
+) -> JSONResponse:
+    """Get a list of the fine grained authorisations a user has for a given reporting org."""
+
+    raise fastapi.HTTPException(
+        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Not yet implemented",
+    )
