@@ -18,3 +18,11 @@ class FineGrainedAuthorisationRoleAssociation(pydantic.BaseModel):
     user: UUID
     reporting_org: UUID
     role: FineGrainedAuthorisationRole
+    restricted_to_tool: UUID | None = pydantic.Field(default=None)
+
+
+class FineGrainedAuthorisationTool(pydantic.BaseModel):
+    id: UUID = pydantic.Field(default_factory=lambda: uuid4())
+    name: str
+    provider: str
+    client_id: str

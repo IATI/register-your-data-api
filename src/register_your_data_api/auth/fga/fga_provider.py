@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from .models import FineGrainedAuthorisationRoleAssociation
+from .models import FineGrainedAuthorisationRoleAssociation, FineGrainedAuthorisationTool
 
 
 class FineGrainedAuthorisationIntegrityError(Exception):
@@ -25,7 +25,7 @@ class FineGrainedAuthorisationProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_user_role_for_org(self, user: UUID, org: UUID) -> FineGrainedAuthorisationRoleAssociation | None:
+    def get_user_roles_for_org(self, user: UUID, org: UUID) -> list[FineGrainedAuthorisationRoleAssociation]:
         """Returns a list of all the user's fine grained access roles for a specific organisation"""
         raise NotImplementedError
 
@@ -64,4 +64,14 @@ class FineGrainedAuthorisationProvider(ABC):
     @abstractmethod
     def delete_all_fine_grained_authorisations_for_org(self, org: UUID) -> None:
         """Deletes all fine grained role associations for an organisation"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_all_tools(self) -> list[FineGrainedAuthorisationTool]:
+        """Get a list of all the tools stored in the database."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_tools_for_user(self, user: UUID) -> list[FineGrainedAuthorisationTool]:
+        """Get a list of all the tools for which the user is an admin user."""
         raise NotImplementedError

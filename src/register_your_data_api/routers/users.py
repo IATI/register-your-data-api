@@ -381,9 +381,9 @@ def update_user_role_in_reporting_org(
             )
 
     # 7. Check whether there is an existing FGA entry for this user and reporting org
-    user_role_for_org = context.fine_grained_auth_provider.get_user_role_for_org(user_id, org_id)
+    user_roles_for_org = context.fine_grained_auth_provider.get_user_roles_for_org(user_id, org_id)
 
-    if user_role_for_org is None:
+    if user_roles_for_org is None:
         context.app_logger.error(
             f"Unexpected error: user with id: {user.user_id_crm} attempted to change user id: {user_id}'s role in "
             f"organisation with id: {org_id} but the user has no entry in the FGA DB for this organisation. "
@@ -401,14 +401,14 @@ def update_user_role_in_reporting_org(
         return JSONResponse({"data": None, "error": None, "status": "success"}, 200)
 
     # Don't update if the role is the same
-    if str(user_role_for_org.role.name) == new_role.role.upper():
+    if str(user_roles_for_org[0].role.name) == new_role.role.upper():
         return JSONResponse({"data": None, "error": None, "status": "success"}, 200)
 
     # 8. Update the user's role in the FGA database
     # This is safe as new_role has been validated by Pydantic
-    user_role_for_org.role = get_fga_role_from_str(new_role.role)
+    user_roles_for_org[0].role = get_fga_role_from_str(new_role.role)
 
-    context.fine_grained_auth_provider.update_user_role_for_org(user_role_for_org)
+    context.fine_grained_auth_provider.update_user_role_for_org(user_roles_for_org[0])
 
     context.audit_logger.info(
         format_log_msg(
@@ -483,12 +483,12 @@ def remove_user_from_reporting_org(
         ),
     )
 
-    user_role_for_org = context.fine_grained_auth_provider.get_user_role_for_org(user_id, org_id)
+    user_roles_for_org = context.fine_grained_auth_provider.get_user_roles_for_org(user_id, org_id)
 
     assert_precondition_met(
         user.user_id_crm,
         user.client_id,
-        condition_func=lambda: user_role_for_org is not None,
+        condition_func=lambda: len(user_roles_for_org) != 0,
         public_msg=f"User id: {user_id} has no role in organisation with id: {str(org_id)} in the Registry.",
         status_code=fastapi.status.HTTP_400_BAD_REQUEST,
         audit_log_msg=(
@@ -522,7 +522,7 @@ def remove_user_from_reporting_org(
         user.user_id_crm,
         user.client_id,
         condition_func=lambda: not (
-            user_role_for_org.role == FineGrainedAuthorisationRole.ADMIN and number_admins == 1  # type: ignore
+            user_roles_for_org[0].role == FineGrainedAuthorisationRole.ADMIN and number_admins == 1  # type: ignore
         ),
         public_msg=(
             f"User id: {user_id} is the last admin user associated with "
@@ -537,7 +537,7 @@ def remove_user_from_reporting_org(
 
     # 5. Delete the user's role in the FGA database
     try:
-        context.fine_grained_auth_provider.delete_user_role_for_org(user_role_for_org)  # type: ignore
+        context.fine_grained_auth_provider.delete_user_role_for_org(user_roles_for_org[0])  # type: ignore
 
         context.audit_logger.info(
             format_log_msg(
