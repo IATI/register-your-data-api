@@ -185,6 +185,8 @@ class MockedAppAndContext:
 
     _mocked_tool_ids: list[UUID] = []
 
+    _mocked_tool_client_ids: list[str] = []
+
     def __init__(self) -> None:
         # Generate two test keys
         self._JWKS_KEYS: dict[str, tuple[bytes, bytes, rsa.RSAPublicKey]] = {}
@@ -207,6 +209,9 @@ class MockedAppAndContext:
 
         self._mocked_tool_ids.append(UUID("3a9d5496-77f4-497d-bb77-2bda91285111"))  # Tool One
         self._mocked_tool_ids.append(UUID("6a2d1ca1-b9c2-4bd3-a2a5-099178d1358d"))  # Tool Two
+
+        self._mocked_tool_client_ids.append("wUtu4EuLSlstjasC")  # Tool One
+        self._mocked_tool_client_ids.append("f0fAYHMeLZv8WbfE")  # Tool Two
 
         self._mocked_context = make_test_context(self)  # type: ignore
 
@@ -247,13 +252,15 @@ class MockedAppAndContext:
 
         return self._app
 
-    def get_valid_authorization_header(self, test_user_num: int) -> dict[str, str]:
+    def get_valid_authorization_header(self, test_user_num: int, client_id: str = "some_client") -> dict[str, str]:
         """Generates an authorisation header for the user specified in test_user_num
 
         Parameters
         ----------
         test_user_num : int
             Index of the mock test user.
+        client_id : str
+            Client ID to use in the claim.
 
         Returns
         -------
@@ -263,11 +270,13 @@ class MockedAppAndContext:
 
         claims = make_access_token_payload(
             subject=str(self._mocked_user_ids[test_user_num]),
+            client_id=client_id,
             audience="iati_register_your_data",
             scopes=(
                 "ryd ryd:reporting_org ryd:reporting_org:create ryd:reporting_org:update ryd:reporting_org:delete "
-                "ryd:reporting_org:user ryd:reporting_org:user:update ryd:dataset "
-                "ryd:dataset:update ryd:dataset:delete"
+                "ryd:reporting_org:user ryd:reporting_org:user:update "
+                "ryd:reporting_org:tool ryd:reporting_org:tool:update "
+                "ryd:dataset ryd:dataset:update ryd:dataset:delete"
             ),
         )
         token = jwt.encode(claims, self._JWKS_KEYS["key1"][0], algorithm="RS256", headers={"kid": "key1"})
@@ -413,7 +422,14 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
         )
 
         # Add tools.
-        session.add(ToolDbModel(id=app_and_context._mocked_tool_ids[0], name="Tool One", provider="Tool Maker"))
+        session.add(
+            ToolDbModel(
+                id=app_and_context._mocked_tool_ids[0],
+                name="Tool One",
+                provider="Tool Maker",
+                client_id=app_and_context._mocked_tool_client_ids[0],
+            )
+        )
         session.add(
             ToolAuthorisationDbModel(
                 tool=app_and_context._mocked_tool_ids[0], reporting_org=app_and_context._mocked_reporting_org_ids[0]
@@ -424,7 +440,14 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
                 tool=app_and_context._mocked_tool_ids[0], reporting_org=app_and_context._mocked_reporting_org_ids[1]
             )
         )
-        session.add(ToolDbModel(id=app_and_context._mocked_tool_ids[1], name="Tool Two", provider="Tool Maker"))
+        session.add(
+            ToolDbModel(
+                id=app_and_context._mocked_tool_ids[1],
+                name="Tool Two",
+                provider="Tool Maker",
+                client_id=app_and_context._mocked_tool_client_ids[1],
+            )
+        )
 
         # Person Five is a user for both tools.
         session.add(
