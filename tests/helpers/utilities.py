@@ -1,6 +1,10 @@
 import datetime
+import secrets
+import string
 import uuid
 from typing import Any
+
+from register_your_data_api.auth.fga.models import FineGrainedAuthorisationRoleAssociation
 
 
 def find_record_in_response(resp_as_object: dict[str, Any], record_id: str) -> dict[str, Any] | None:
@@ -38,3 +42,37 @@ def get_current_timestamp_as_str(format_with_z: bool = False) -> str:
         return s.replace("+00:00", "Z")
 
     return s
+
+
+def gen_random_client_id(size: int = 16) -> str:
+    """Generates a random client ID"""
+    return "".join([secrets.choice(string.ascii_letters + string.digits) for _ in range(size)])
+
+
+def association_lists_equal_ignore_id(
+    assocs1: list[FineGrainedAuthorisationRoleAssociation], assocs2: list[FineGrainedAuthorisationRoleAssociation]
+) -> bool:
+    """Test two lists of FineGrainedAuthorisationRoleAssociations are equal (excluding ids)
+
+    Parameters
+    ----------
+    assocs1 : list[FineGrainedAuthorisationRoleAssociation]
+        First list of associations.
+    assocs2 : list[FineGrainedAuthorisationRoleAssociation]
+        Second list of associations.
+
+    Returns
+    -------
+    bool
+    """
+
+    _a1 = [x.model_dump(exclude={"id"}) for x in assocs1]
+    _a2 = [x.model_dump(exclude={"id"}) for x in assocs2]
+
+    def _sortfun(x: dict[str, uuid.UUID | str | None]) -> str:
+        return str(x["user"]) + str(x["reporting_org"]) + str(x["role"]) + str(x["restricted_to_tool"])
+
+    _a1.sort(key=_sortfun)
+    _a2.sort(key=_sortfun)
+
+    return _a1 == _a2

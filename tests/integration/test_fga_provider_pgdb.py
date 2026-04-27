@@ -1,4 +1,4 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 import sqlmodel
@@ -14,9 +14,12 @@ from register_your_data_api.auth.fga.fga_provider_db import (
 )
 from register_your_data_api.auth.fga.models import (
     FineGrainedAuthorisationRole,
+    FineGrainedAuthorisationRoleAssociation,
+    FineGrainedAuthorisationTool,
 )
 
 from ..helpers.setup_and_teardown import setup_db
+from ..helpers.utilities import association_lists_equal_ignore_id, gen_random_client_id
 
 
 def test_assignment_of_permissions() -> None:
@@ -149,7 +152,7 @@ def test_provider_users_cannot_have_role_for_org() -> None:
             )
         )
 
-        session.add(ToolDbModel(id=tool, name="Tool 1", provider="Tool Maker"))
+        session.add(ToolDbModel(id=tool, name="Tool 1", provider="Tool Maker", client_id="JnZ63UFhp03LY5N6"))
         session.add(ToolAuthorisationDbModel(tool=tool, reporting_org=org, id=uuid4()))
         session.add(ToolAdminUserDbModel(tool=tool, user=user_provider, id=uuid4()))
         session.add(ToolAdminUserDbModel(tool=tool, user=user_both, id=uuid4()))
@@ -164,44 +167,135 @@ def test_provider_users_cannot_have_role_for_org() -> None:
 
     with pytest.raises(FineGrainedAuthorisationIntegrityError) as excinfo:
         fga.get_user_associations_for_org(org)
-    assert "Reporting org has user(s) that have multiple conflicting roles" in str(excinfo.value)
+    assert "Reporting org has user(s) with both provider admin and reporting org roles" in str(excinfo.value)
 
-    association = fga.get_user_role_for_org(user_provider, org)
-    assert association is not None
-    assert association.role == FineGrainedAuthorisationRole.PROVIDER_ADMIN
+    associations = fga.get_user_roles_for_org(user_provider, org)
+    assert associations
+    assert associations[0].role == FineGrainedAuthorisationRole.PROVIDER_ADMIN
 
-    association = fga.get_user_role_for_org(user_org, org)
-    assert association is not None
-    assert association.role == FineGrainedAuthorisationRole.ADMIN
+    associations = fga.get_user_roles_for_org(user_org, org)
+    assert associations
+    assert associations[0].role == FineGrainedAuthorisationRole.ADMIN
 
     with pytest.raises(FineGrainedAuthorisationIntegrityError) as excinfo:
-        fga.get_user_role_for_org(user_both, org)
+        fga.get_user_roles_for_org(user_both, org)
     assert "User has both reporting org role and a provider admin role" in str(excinfo.value)
 
 
 def test_provider_roles_are_correctly_applied() -> None:
-    """Test FGA provider authorisations using SQLite in-memory DB"""
 
     setup_db("sqlite:///test.db")
 
     fga = FineGrainedAuthorisationProviderDb("sqlite:///test.db")
     fga.setup()
 
-    user_org1, user_tool1, user_tool2, user_both_tools, user_no_perms = uuid4(), uuid4(), uuid4(), uuid4(), uuid4()
-    org1, org2 = uuid4(), uuid4()
-    tool1, tool2 = uuid4(), uuid4()
+    u_o1, u_t1, u_t2, u_bothtools, u_noperms = uuid4(), uuid4(), uuid4(), uuid4(), uuid4()
+    o1, o2 = uuid4(), uuid4()
+    t1, t2 = uuid4(), uuid4()
+    t1_clientid, t2_clientid = gen_random_client_id(), gen_random_client_id()
 
     with sqlmodel.Session(fga._engine) as session:
         session.add(
             FineGrainedAuthorisationDbModel(
-                user=user_org1, reporting_org=org1, role=FineGrainedAuthorisationRole.ADMIN, id=uuid4()
+                user=u_o1, reporting_org=o1, role=FineGrainedAuthorisationRole.ADMIN, id=uuid4()
             )
         )
 
-        session.add(ToolDbModel(id=tool1, name="Tool 1", provider="Tool Maker"))
-        session.add(ToolDbModel(id=tool2, name="Tool 2", provider="Tool Maker"))
-        session.add(ToolAuthorisationDbModel(tool=tool1, reporting_org=org1, id=uuid4()))
-        session.add(ToolAuthorisationDbModel(tool=tool2, reporting_org=org2, id=uuid4()))
+        session.add(ToolDbModel(id=t1, name="Tool 1", provider="Tool Maker", client_id=t1_clientid))
+        session.add(ToolDbModel(id=t2, name="Tool 2", provider="Tool Maker", client_id=t2_clientid))
+        session.add(ToolAuthorisationDbModel(tool=t1, reporting_org=o1, id=uuid4()))
+        session.add(ToolAuthorisationDbModel(tool=t2, reporting_org=o1, id=uuid4()))
+        session.add(ToolAuthorisationDbModel(tool=t2, reporting_org=o2, id=uuid4()))
+        session.add(ToolAdminUserDbModel(tool=t1, user=u_t1, id=uuid4()))
+        session.add(ToolAdminUserDbModel(tool=t2, user=u_t2, id=uuid4()))
+        session.add(ToolAdminUserDbModel(tool=t1, user=u_bothtools, id=uuid4()))
+        session.add(ToolAdminUserDbModel(tool=t2, user=u_bothtools, id=uuid4()))
+
+        session.commit()
+
+    # fga.get_user_fine_grained_permissions(u_bothtools)
+
+    # Check associations by user.
+    ASSOCIATIONS_BY_USER_CHECKS = {
+        u_o1: [
+            (o1, FineGrainedAuthorisationRole.ADMIN, None),
+        ],
+        u_t1: [
+            (o1, FineGrainedAuthorisationRole.PROVIDER_ADMIN, t1),
+        ],
+        u_t2: [
+            (o1, FineGrainedAuthorisationRole.PROVIDER_ADMIN, t2),
+            (o2, FineGrainedAuthorisationRole.PROVIDER_ADMIN, t2),
+        ],
+        u_bothtools: [
+            (o1, FineGrainedAuthorisationRole.PROVIDER_ADMIN, t1),
+            (o1, FineGrainedAuthorisationRole.PROVIDER_ADMIN, t2),
+            (o2, FineGrainedAuthorisationRole.PROVIDER_ADMIN, t2),
+        ],
+        u_noperms: [],
+    }
+    for u, data in ASSOCIATIONS_BY_USER_CHECKS.items():
+        expected_associations = [
+            FineGrainedAuthorisationRoleAssociation(user=u, reporting_org=o, role=r, restricted_to_tool=t, id=uuid4())
+            for o, r, t in data  # type: ignore[attr-defined]
+        ]
+        assert association_lists_equal_ignore_id(fga.get_user_fine_grained_permissions(u), expected_associations)
+
+    # Check associations by org.
+    ASSOCIATIONS_BY_ORG_CHECKS = {
+        o1: [
+            (u_o1, FineGrainedAuthorisationRole.ADMIN, None),
+            (u_t1, FineGrainedAuthorisationRole.PROVIDER_ADMIN, t1),
+            (u_t2, FineGrainedAuthorisationRole.PROVIDER_ADMIN, t2),
+            (u_bothtools, FineGrainedAuthorisationRole.PROVIDER_ADMIN, t1),
+            (u_bothtools, FineGrainedAuthorisationRole.PROVIDER_ADMIN, t2),
+        ],
+        o2: [
+            (u_t2, FineGrainedAuthorisationRole.PROVIDER_ADMIN, t2),
+            (u_bothtools, FineGrainedAuthorisationRole.PROVIDER_ADMIN, t2),
+        ],
+    }
+    for o, data in ASSOCIATIONS_BY_ORG_CHECKS.items():
+        expected_associations = [
+            FineGrainedAuthorisationRoleAssociation(user=u, reporting_org=o, role=r, restricted_to_tool=t, id=uuid4())
+            for u, r, t in data  # type: ignore[attr-defined]
+        ]
+        assert association_lists_equal_ignore_id(fga.get_user_associations_for_org(o), expected_associations)
+
+    # Check associations by user and org
+    ASSOCIATIONS_BY_USER_AND_ORG_CHECKS = {
+        (u_o1, o1): [(FineGrainedAuthorisationRole.ADMIN, None)],
+        (u_t1, o1): [(FineGrainedAuthorisationRole.PROVIDER_ADMIN, t1)],
+        (u_t2, o1): [(FineGrainedAuthorisationRole.PROVIDER_ADMIN, t2)],
+        (u_t2, o2): [(FineGrainedAuthorisationRole.PROVIDER_ADMIN, t2)],
+        (u_bothtools, o1): [
+            (FineGrainedAuthorisationRole.PROVIDER_ADMIN, t1),
+            (FineGrainedAuthorisationRole.PROVIDER_ADMIN, t2),
+        ],
+        (u_bothtools, o2): [(FineGrainedAuthorisationRole.PROVIDER_ADMIN, t2)],
+        (u_noperms, o1): [],
+        (u_noperms, o2): [],
+    }
+    for (u, o), data in ASSOCIATIONS_BY_USER_AND_ORG_CHECKS.items():
+        expected_associations = [
+            FineGrainedAuthorisationRoleAssociation(user=u, reporting_org=o, role=r, restricted_to_tool=t, id=uuid4())
+            for r, t in data  # type: ignore[attr-defined]
+        ]
+        assert association_lists_equal_ignore_id(fga.get_user_roles_for_org(u, o), expected_associations)
+
+
+def test_tool_lists_correctly_fetched() -> None:
+    setup_db("sqlite:///test.db")
+
+    fga = FineGrainedAuthorisationProviderDb("sqlite:///test.db")
+    fga.setup()
+
+    tool1, tool2 = UUID("0415675e-8767-42e2-9f51-b44211b09aa8"), UUID("d3ef34c9-3dd2-445e-aeff-644853753c43")
+    user_tool1, user_tool2, user_both_tools = uuid4(), uuid4(), uuid4()
+
+    with sqlmodel.Session(fga._engine) as session:
+        session.add(ToolDbModel(id=tool1, name="Tool 1", provider="Tool Maker", client_id="JnZ63UFhp03LY5N6"))
+        session.add(ToolDbModel(id=tool2, name="Tool 2", provider="Tool Maker", client_id="v4amDn43kirvBmB9"))
         session.add(ToolAdminUserDbModel(tool=tool1, user=user_tool1, id=uuid4()))
         session.add(ToolAdminUserDbModel(tool=tool2, user=user_tool2, id=uuid4()))
         session.add(ToolAdminUserDbModel(tool=tool1, user=user_both_tools, id=uuid4()))
@@ -209,68 +303,37 @@ def test_provider_roles_are_correctly_applied() -> None:
 
         session.commit()
 
-    # Check user permissions.
-    associations = fga.get_user_fine_grained_permissions(user_org1)
-    assert len(associations) == 1
-    assert associations[0].reporting_org == org1
-    assert associations[0].role == FineGrainedAuthorisationRole.ADMIN
+    # Check all tool list.
+    tools = fga.get_all_tools()
+    tools.sort(key=lambda x: x.id)
 
-    associations = fga.get_user_fine_grained_permissions(user_tool1)
-    assert len(associations) == 1
-    assert associations[0].reporting_org == org1
-    assert associations[0].role == FineGrainedAuthorisationRole.PROVIDER_ADMIN
+    assert len(tools) == 2
+    assert tools[0] == FineGrainedAuthorisationTool(
+        id=tool1, name="Tool 1", provider="Tool Maker", client_id="JnZ63UFhp03LY5N6"
+    )
+    assert tools[1] == FineGrainedAuthorisationTool(
+        id=tool2, name="Tool 2", provider="Tool Maker", client_id="v4amDn43kirvBmB9"
+    )
 
-    associations = fga.get_user_fine_grained_permissions(user_tool2)
-    assert len(associations) == 1
-    assert associations[0].reporting_org == org2
-    assert associations[0].role == FineGrainedAuthorisationRole.PROVIDER_ADMIN
+    # Check tool list for each user.
+    tools = fga.get_tools_for_user(user_tool1)
+    assert len(tools) == 1
+    assert tools[0] == FineGrainedAuthorisationTool(
+        id=tool1, name="Tool 1", provider="Tool Maker", client_id="JnZ63UFhp03LY5N6"
+    )
 
-    associations = fga.get_user_fine_grained_permissions(user_both_tools)
-    assert len(associations) == 2
-    assert all([association.role == FineGrainedAuthorisationRole.PROVIDER_ADMIN for association in associations])
-    assert org1 in [association.reporting_org for association in associations]
-    assert org2 in [association.reporting_org for association in associations]
+    tools = fga.get_tools_for_user(user_tool2)
+    assert len(tools) == 1
+    assert tools[0] == FineGrainedAuthorisationTool(
+        id=tool2, name="Tool 2", provider="Tool Maker", client_id="v4amDn43kirvBmB9"
+    )
 
-    associations = fga.get_user_fine_grained_permissions(user_no_perms)
-    assert len(associations) == 0
-
-    # Check associations each user has for each org
-    USER_ORG_ASSOCIATION_CHECKS = [
-        (user_org1, org1, FineGrainedAuthorisationRole.ADMIN),
-        (user_tool1, org1, FineGrainedAuthorisationRole.PROVIDER_ADMIN),
-        (user_tool2, org1, None),
-        (user_both_tools, org1, FineGrainedAuthorisationRole.PROVIDER_ADMIN),
-        (user_no_perms, org1, None),
-        (user_org1, org2, None),
-        (user_tool1, org2, None),
-        (user_tool2, org2, FineGrainedAuthorisationRole.PROVIDER_ADMIN),
-        (user_both_tools, org2, FineGrainedAuthorisationRole.PROVIDER_ADMIN),
-        (user_no_perms, org2, None),
-    ]
-
-    for check in USER_ORG_ASSOCIATION_CHECKS:
-        association = fga.get_user_role_for_org(check[0], check[1])
-        if check[2] is None:
-            assert association is None
-        else:
-            assert association is not None
-            assert association.user == check[0]
-            assert association.reporting_org == check[1]
-            assert association.role == check[2]
-
-    # Check user associations for org.
-    associations_by_user = {association.user: association for association in fga.get_user_associations_for_org(org1)}
-    assert len(associations_by_user) == 3
-    assert user_org1 in associations_by_user
-    assert associations_by_user[user_org1].role == FineGrainedAuthorisationRole.ADMIN
-    assert user_tool1 in associations_by_user
-    assert associations_by_user[user_tool1].role == FineGrainedAuthorisationRole.PROVIDER_ADMIN
-    assert user_both_tools in associations_by_user
-    assert associations_by_user[user_both_tools].role == FineGrainedAuthorisationRole.PROVIDER_ADMIN
-
-    associations_by_user = {association.user: association for association in fga.get_user_associations_for_org(org2)}
-    assert len(associations_by_user) == 2
-    assert user_tool2 in associations_by_user
-    assert associations_by_user[user_tool2].role == FineGrainedAuthorisationRole.PROVIDER_ADMIN
-    assert user_both_tools in associations_by_user
-    assert associations_by_user[user_both_tools].role == FineGrainedAuthorisationRole.PROVIDER_ADMIN
+    tools = fga.get_tools_for_user(user_both_tools)
+    tools.sort(key=lambda x: x.id)
+    assert len(tools) == 2
+    assert tools[0] == FineGrainedAuthorisationTool(
+        id=tool1, name="Tool 1", provider="Tool Maker", client_id="JnZ63UFhp03LY5N6"
+    )
+    assert tools[1] == FineGrainedAuthorisationTool(
+        id=tool2, name="Tool 2", provider="Tool Maker", client_id="v4amDn43kirvBmB9"
+    )
