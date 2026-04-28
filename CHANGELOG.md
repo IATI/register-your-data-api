@@ -19,6 +19,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.5] - 2026-04-28
+
+### Added
+
+- Tools list endpoint and associated test.
+- User roles endpoint and associated test; and a placeholder for the related permissions endpoint.
+- Provider admin management endpoint placeholders and tests.
+
+### Changed
+
+- FGA Provider now stores tool client IDs and can handle multiple provider_admin roles per user per reporting
+  orgs to accommodate multiple tools being able to access the same reporting org via provider_admin.
+- FGA Validator now ingests a list of tools that the user is an admin user for and the client id of the calling
+  application.
+- FGA Validator restricts provider_admin access to only the client id associated with that tool.
+- Tests for the FGA provider DB and validator.
+- Changes to the tests for dataset and reporting org routes so that calls via provider_admin can use the correct client id.
+
+
 ## [0.3.4] - 2026-04-20
 
 ### Fixed
