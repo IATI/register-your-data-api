@@ -75,3 +75,8 @@ class FineGrainedAuthorisationProvider(ABC):
     def get_tools_for_user(self, user: UUID) -> list[FineGrainedAuthorisationTool]:
         """Get a list of all the tools for which the user is an admin user."""
         raise NotImplementedError
+
+    @abstractmethod
+    def is_user_a_tool_adminuser(self, user: UUID) -> bool:
+        """Returns True is user is an admin user for tools, else False"""
+        raise NotImplementedError

@@ -267,3 +267,6 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
             return [FineGrainedAuthorisationTool(**db_tool.model_dump()) for db_tool in db_tools]
 
         return []
+
+    def is_user_a_tool_adminuser(self, user: UUID) -> bool:
+        return len(self.get_tools_for_user(user)) > 0

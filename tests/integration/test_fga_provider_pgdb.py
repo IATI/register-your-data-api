@@ -337,3 +337,41 @@ def test_tool_lists_correctly_fetched() -> None:
     assert tools[1] == FineGrainedAuthorisationTool(
         id=tool2, name="Tool 2", provider="Tool Maker", client_id="v4amDn43kirvBmB9"
     )
+
+
+def test_tool_admin_users_can_be_detected() -> None:
+
+    setup_db("sqlite:///test.db")
+
+    fga = FineGrainedAuthorisationProviderDb("sqlite:///test.db")
+    fga.setup()
+
+    u_o1, u_t1, u_t2, u_bothtools, u_noperms = uuid4(), uuid4(), uuid4(), uuid4(), uuid4()
+    o1, o2 = uuid4(), uuid4()
+    t1, t2 = uuid4(), uuid4()
+    t1_clientid, t2_clientid = gen_random_client_id(), gen_random_client_id()
+
+    with sqlmodel.Session(fga._engine) as session:
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=u_o1, reporting_org=o1, role=FineGrainedAuthorisationRole.ADMIN, id=uuid4()
+            )
+        )
+
+        session.add(ToolDbModel(id=t1, name="Tool 1", provider="Tool Maker", client_id=t1_clientid))
+        session.add(ToolDbModel(id=t2, name="Tool 2", provider="Tool Maker", client_id=t2_clientid))
+        session.add(ToolAuthorisationDbModel(tool=t1, reporting_org=o1, id=uuid4()))
+        session.add(ToolAuthorisationDbModel(tool=t2, reporting_org=o1, id=uuid4()))
+        session.add(ToolAuthorisationDbModel(tool=t2, reporting_org=o2, id=uuid4()))
+        session.add(ToolAdminUserDbModel(tool=t1, user=u_t1, id=uuid4()))
+        session.add(ToolAdminUserDbModel(tool=t2, user=u_t2, id=uuid4()))
+        session.add(ToolAdminUserDbModel(tool=t1, user=u_bothtools, id=uuid4()))
+        session.add(ToolAdminUserDbModel(tool=t2, user=u_bothtools, id=uuid4()))
+
+        session.commit()
+
+    assert not fga.is_user_a_tool_adminuser(u_o1)
+    assert fga.is_user_a_tool_adminuser(u_t1)
+    assert fga.is_user_a_tool_adminuser(u_t2)
+    assert fga.is_user_a_tool_adminuser(u_bothtools)
+    assert not fga.is_user_a_tool_adminuser(u_noperms)

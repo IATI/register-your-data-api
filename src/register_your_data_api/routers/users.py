@@ -86,6 +86,19 @@ def add_user_to_reporting_org(
         ),
     )
 
+    # Tool provider_admin users should not be allowed to join any organisations.
+    assert_precondition_met(
+        user.user_id_crm,
+        user.client_id,
+        condition_func=lambda: not context.fine_grained_auth_provider.is_user_a_tool_adminuser(user_id),
+        public_msg=f"User id: {user_id} cannot be given a role in organisation with ID {payload.oid_str}.",
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        audit_log_msg=(
+            f"Request by user with id: {user.user_id_crm} to add a tool admin user {user_id} to join "
+            f"reporting org id: {payload.oid_str} but provider_admin users cannot join organisations."
+        ),
+    )
+
     # Query SuiteCRM to check that the reporting_org exists
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
@@ -357,7 +370,23 @@ def update_user_role_in_reporting_org(
         ),
     )
 
-    # 6. Check that the target user and reporting org are related in CRM
+    # 6. Check that the user to be modified is not a provider_admin for a tool - this is important to do
+    # since, if the following code does not find a relationship between the target user and the reporting
+    # org in the CRM, or a role in the FGA database, it will try to create them, but this must not be
+    # allowed for superadmins
+    assert_precondition_met(
+        user.user_id_crm,
+        user.client_id,
+        condition_func=lambda: not context.fine_grained_auth_provider.is_user_a_tool_adminuser(user_id),
+        public_msg=f"User id: {user_id} cannot be given a role in no organisation with ID {str(org_id)}.",
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        audit_log_msg=(
+            f"User with id: {user.user_id_crm} attempted to change user id: {user_id}'s role "
+            f"in organisation with id: {org_id} but user with id: {user_id} is a provider_admin tool user."
+        ),
+    )
+
+    # 7. Check that the target user and reporting org are related in CRM
     users_for_org_from_suitecrm = crm.get_relationship("Accounts", str(org_id), "Contacts")
 
     user_related_to_org_in_crm = find_item_in_suitecrm_response(users_for_org_from_suitecrm, str(user_id))
@@ -382,7 +411,7 @@ def update_user_role_in_reporting_org(
                 detail="There was a problem processing your request. Please contact support.",
             )
 
-    # 7. Check whether there is an existing FGA entry for this user and reporting org
+    # 8. Check whether there is an existing FGA entry for this user and reporting org
     user_roles_for_org = context.fine_grained_auth_provider.get_user_roles_for_org(user_id, org_id)
 
     if len(user_roles_for_org) == 0:
@@ -406,7 +435,7 @@ def update_user_role_in_reporting_org(
     if str(user_roles_for_org[0].role.name) == new_role.role.upper():
         return JSONResponse({"data": None, "error": None, "status": "success"}, 200)
 
-    # 8. Update the user's role in the FGA database
+    # 9. Update the user's role in the FGA database
     # This is safe as new_role has been validated by Pydantic
     user_roles_for_org[0].role = get_fga_role_from_str(new_role.role)
 
@@ -485,6 +514,22 @@ def remove_user_from_reporting_org(
         ),
     )
 
+    # 4. Check that this isn't a tool provider_admin user.
+    assert_precondition_met(
+        user.user_id_crm,
+        user.client_id,
+        condition_func=lambda: not context.fine_grained_auth_provider.is_user_a_tool_adminuser(user_id),
+        public_msg=(
+            f"User id: {user_id} is a tool admin user and should not have a role in "
+            f"organisation with ID {str(org_id)}."
+        ),
+        status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+        audit_log_msg=(
+            f"Request by user: {user.user_id_crm} to remove user {user_id} from reporting org id: {org_id} "
+            f"but {user_id} is a tool admin user and should not have an organisation role."
+        ),
+    )
+
     user_roles_for_org = context.fine_grained_auth_provider.get_user_roles_for_org(user_id, org_id)
 
     assert_precondition_met(
@@ -499,7 +544,7 @@ def remove_user_from_reporting_org(
         ),
     )
 
-    # 4a. Check that the user isn't the last user in the organisation
+    # 5a. Check that the user isn't the last user in the organisation
     users_in_org = context.fine_grained_auth_provider.get_user_associations_for_org(org_id)
 
     assert_precondition_met(
@@ -517,7 +562,7 @@ def remove_user_from_reporting_org(
         ),
     )
 
-    # 4b. Check that the user isn't the last admin user for this organisation
+    # 5b. Check that the user isn't the last admin user for this organisation
     number_admins = len(list(filter(lambda x: x.role == FineGrainedAuthorisationRole.ADMIN, users_in_org)))
 
     assert_precondition_met(
@@ -537,7 +582,7 @@ def remove_user_from_reporting_org(
         ),
     )
 
-    # 5. Delete the user's role in the FGA database
+    # 6. Delete the user's role in the FGA database
     try:
         context.fine_grained_auth_provider.delete_user_role_for_org(user_roles_for_org[0])
 
@@ -578,8 +623,7 @@ def get_user_roles(
     context: Context = request.app.state.context
 
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
-    # import pdb
-    # breakpoint()
+
     # 1. Verify that the logged in user is the same as the requested user, unless the caller is superadmin.
     assert_precondition_met(
         user.user_id_crm,
