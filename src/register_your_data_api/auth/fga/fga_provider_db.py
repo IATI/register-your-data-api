@@ -1,4 +1,4 @@
-import collections
+from collections import Counter
 from uuid import UUID, uuid4
 
 from sqlalchemy import Engine, delete
@@ -98,14 +98,10 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
         regular_associations = [
             FineGrainedAuthorisationRoleAssociation(**db_fga.model_dump()) for db_fga in user_db_fgas
         ]
-        if len(regular_associations) > 1:
-            if (
-                collections.Counter([association.user for association in regular_associations]).most_common(1)[0][1]
-                > 1
-            ):
-                raise FineGrainedAuthorisationIntegrityError(
-                    "Reporting org has user(s) that have multiple reporting org roles"
-                )
+        if max(Counter([association.user for association in regular_associations]).values(), default=0) > 1:
+            raise FineGrainedAuthorisationIntegrityError(
+                "Reporting org has user(s) that have multiple reporting org roles"
+            )
 
         # Check that provider admin users are unique for this reporting org - each user can only have provider
         # admin by each tool (we cannot have two accesses via provider admin by the same tool).
@@ -118,19 +114,21 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
             )
             for tool_admin_user_for_org in tool_admin_users_for_org
         ]
-        if provider_admin_associations:
-            if (
-                collections.Counter(
+        if (
+            max(
+                Counter(
                     [(association.user, association.restricted_to_tool) for association in provider_admin_associations]
-                ).most_common(1)[0][1]
-                > 1
-            ):
-                raise FineGrainedAuthorisationIntegrityError(
-                    "Reporting org has provider admins with multiple conflicting tool admin roles"
-                )
+                ).values(),
+                default=0,
+            )
+            > 1
+        ):
+            raise FineGrainedAuthorisationIntegrityError(
+                "Reporting org has provider admins with multiple conflicting tool admin roles"
+            )
 
         # Check that a provider admin is not in the list of regular associations.
-        if len(set([x.user for x in regular_associations]) & set([x.user for x in provider_admin_associations])) > 0:
+        if set([x.user for x in regular_associations]) & set([x.user for x in provider_admin_associations]):
             raise FineGrainedAuthorisationIntegrityError(
                 "Reporting org has user(s) with both provider admin and reporting org roles"
             )
