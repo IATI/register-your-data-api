@@ -182,27 +182,31 @@ def test_reporting_org_detail_handles_non_uuid() -> None:
 
 
 @pytest.mark.parametrize(
-    "user,reporting_org_id,status_code",
+    "user,reporting_org_id,client_id,status_code",
     [
-        (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200),
-        (0, "ab851a83-a384-3eb9-caf0-68db8125b067", 200),
-        (0, "01234567-0000-1111-2222-0123456789ab", 403),
-        (1, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200),
-        (1, "ab851a83-a384-3eb9-caf0-68db8125b067", 403),
-        (1, "01234567-0000-1111-2222-0123456789ab", 403),
-        (2, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200),
-        (2, "ab851a83-a384-3eb9-caf0-68db8125b067", 200),
-        (2, "01234567-0000-1111-2222-0123456789ab", 404),
-        (4, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200),
-        (4, "ab851a83-a384-3eb9-caf0-68db8125b067", 200),
-        (4, "da17734d-3926-47ef-8563-8a1b0247ed11", 403),
-        (4, "01234567-0000-1111-2222-0123456789ab", 403),
-        (6, "da17734d-3926-47ef-8563-8a1b0247ed11", 500),
-        (6, "ab851a83-a384-3eb9-caf0-68db8125b067", 500),
-        (6, "01234567-0000-1111-2222-0123456789ab", 500),
+        (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 200),
+        (0, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client", 200),
+        (0, "01234567-0000-1111-2222-0123456789ab", "some_client", 403),
+        (1, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 200),
+        (1, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client", 403),
+        (1, "01234567-0000-1111-2222-0123456789ab", "some_client", 403),
+        (2, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 200),
+        (2, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client", 200),
+        (2, "01234567-0000-1111-2222-0123456789ab", "some_client", 404),
+        (4, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "wUtu4EuLSlstjasC", 200),
+        (4, "ab851a83-a384-3eb9-caf0-68db8125b067", "wUtu4EuLSlstjasC", 200),
+        (4, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 403),
+        (4, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client", 403),
+        (4, "da17734d-3926-47ef-8563-8a1b0247ed11", "some_client", 403),
+        (4, "01234567-0000-1111-2222-0123456789ab", "some_client", 403),
+        (6, "da17734d-3926-47ef-8563-8a1b0247ed11", "some_client", 500),
+        (6, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client", 500),
+        (6, "01234567-0000-1111-2222-0123456789ab", "some_client", 500),
     ],
 )
-def test_reporting_org_detail_check_user_access(user: int, reporting_org_id: str, status_code: int) -> None:
+def test_reporting_org_detail_check_user_access(
+    user: int, reporting_org_id: str, client_id: str, status_code: int
+) -> None:
     """Tests the user's access to /reporting_orgs/{oid}"""
 
     appAndContext = MockedAppAndContext()
@@ -211,7 +215,8 @@ def test_reporting_org_detail_check_user_access(user: int, reporting_org_id: str
 
     with TestClient(fastAPIapp) as client:
         response = client.get(
-            f"/api/v1/reporting-orgs/{reporting_org_id}", headers=appAndContext.get_valid_authorization_header(user)
+            f"/api/v1/reporting-orgs/{reporting_org_id}",
+            headers=appAndContext.get_valid_authorization_header(user, client_id=client_id),
         )
 
         assert response.status_code == status_code
@@ -268,7 +273,7 @@ def test_reporting_org_detail_check_values(
         with TestClient(fastAPIapp) as client:
             response = client.get(
                 f"/api/v1/reporting-orgs/{reporting_org_id}",
-                headers=appAndContext.get_valid_authorization_header(user),
+                headers=appAndContext.get_valid_authorization_header(user, client_id="wUtu4EuLSlstjasC"),
                 params={},
             )
 
@@ -494,7 +499,7 @@ def test_reporting_org_update(user: int, status_code: int, organisation_id: str)
 
         response = client.patch(
             f"/api/v1/reporting-orgs/{organisation_id}",
-            headers=appAndContext.get_valid_authorization_header(user),
+            headers=appAndContext.get_valid_authorization_header(user, client_id="wUtu4EuLSlstjasC"),
             content=json.dumps(payload),
         )
 
@@ -508,38 +513,40 @@ def test_reporting_org_delete(user: int, status_code: int) -> None:
     with TestClient(fastAPIapp) as client:
         response = client.delete(
             "/api/v1/reporting-orgs/552376ae-2aa7-98ab-d800-68daa9bfeb4a",
-            headers=appAndContext.get_valid_authorization_header(user),
+            headers=appAndContext.get_valid_authorization_header(user, client_id="wUtu4EuLSlstjasC"),
         )
 
         assert response.status_code == status_code
 
 
 @pytest.mark.parametrize(
-    "user,reporting_org_id,status,status_s,num_datasets",
+    "user,reporting_org_id,client_id,status,status_s,num_datasets",
     [
-        (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200, "success", 1),
-        (0, "ab851a83-a384-3eb9-caf0-68db8125b067", 200, "success", 2),
-        (0, "da17734d-3926-47ef-8563-8a1b0247ed11", 403, "failed", -1),
-        (0, "92f398c1-6163-f097-3ded-68e9138bb9c8", 403, "failed", -1),
-        (1, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200, "success", 1),
-        (1, "ab851a83-a384-3eb9-caf0-68db8125b067", 403, "failed", -1),
-        (1, "da17734d-3926-47ef-8563-8a1b0247ed11", 200, "success", 0),
-        (2, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200, "success", 1),
-        (2, "ab851a83-a384-3eb9-caf0-68db8125b067", 200, "success", 2),
-        (2, "92f398c1-6163-f097-3ded-68e9138bb9c8", 404, "failed", -1),
-        (2, "da17734d-3926-47ef-8563-8a1b0247ed11", 200, "success", 0),
-        (4, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 200, "success", 1),
-        (4, "ab851a83-a384-3eb9-caf0-68db8125b067", 200, "success", 2),
-        (4, "92f398c1-6163-f097-3ded-68e9138bb9c8", 403, "failed", -1),
-        (4, "da17734d-3926-47ef-8563-8a1b0247ed11", 403, "failed", -1),
-        (6, "da17734d-3926-47ef-8563-8a1b0247ed11", 500, "failed", -1),
-        (6, "ab851a83-a384-3eb9-caf0-68db8125b067", 500, "failed", -1),
-        (6, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", 500, "failed", -1),
-        (6, "92f398c1-6163-f097-3ded-68e9138bb9c8", 500, "failed", -1),
+        (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 200, "success", 1),
+        (0, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client", 200, "success", 2),
+        (0, "da17734d-3926-47ef-8563-8a1b0247ed11", "some_client", 403, "failed", -1),
+        (0, "92f398c1-6163-f097-3ded-68e9138bb9c8", "some_client", 403, "failed", -1),
+        (1, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 200, "success", 1),
+        (1, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client", 403, "failed", -1),
+        (1, "da17734d-3926-47ef-8563-8a1b0247ed11", "some_client", 200, "success", 0),
+        (2, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 200, "success", 1),
+        (2, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client", 200, "success", 2),
+        (2, "92f398c1-6163-f097-3ded-68e9138bb9c8", "some_client", 404, "failed", -1),
+        (2, "da17734d-3926-47ef-8563-8a1b0247ed11", "some_client", 200, "success", 0),
+        (4, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "wUtu4EuLSlstjasC", 200, "success", 1),
+        (4, "ab851a83-a384-3eb9-caf0-68db8125b067", "wUtu4EuLSlstjasC", 200, "success", 2),
+        (4, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "invalid_client", 403, "failed", -1),
+        (4, "ab851a83-a384-3eb9-caf0-68db8125b067", "invalid_client", 403, "failed", -1),
+        (4, "92f398c1-6163-f097-3ded-68e9138bb9c8", "some_client", 403, "failed", -1),
+        (4, "da17734d-3926-47ef-8563-8a1b0247ed11", "some_client", 403, "failed", -1),
+        (6, "da17734d-3926-47ef-8563-8a1b0247ed11", "some_client", 500, "failed", -1),
+        (6, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client", 500, "failed", -1),
+        (6, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 500, "failed", -1),
+        (6, "92f398c1-6163-f097-3ded-68e9138bb9c8", "some_client", 500, "failed", -1),
     ],
 )
 def test_reporting_org_list_datasets(
-    user: int, reporting_org_id: str, status: int, status_s: str, num_datasets: int
+    user: int, reporting_org_id: str, client_id: str, status: int, status_s: str, num_datasets: int
 ) -> None:
 
     appAndContext = MockedAppAndContext()
@@ -550,7 +557,7 @@ def test_reporting_org_list_datasets(
 
         response = client.get(
             f"/api/v1/reporting-orgs/{reporting_org_id}/datasets",
-            headers=appAndContext.get_valid_authorization_header(user),
+            headers=appAndContext.get_valid_authorization_header(user, client_id=client_id),
         )
 
         assert response.status_code == status
@@ -725,7 +732,7 @@ def test_reporting_org_list_users(
 
         response = client.get(
             f"/api/v1/reporting-orgs/{reporting_org_id}/users",
-            headers=appAndContext.get_valid_authorization_header(user),
+            headers=appAndContext.get_valid_authorization_header(user, client_id="wUtu4EuLSlstjasC"),
         )
 
         if expect_unauthorised:
@@ -738,3 +745,38 @@ def test_reporting_org_list_users(
             users_returned = {user["id"] for user in resp_json["data"]}
 
             assert users_returned == visible_users
+
+
+def test_reporting_org_tool_management_not_implemented() -> None:
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    with TestClient(fastAPIapp) as client:
+        # When implemented, this call should return a list of tools that have permission to
+        # edit records for an organisation.
+        response = client.get(
+            "/api/v1/reporting-orgs/ab851a83-a384-3eb9-caf0-68db8125b067/tools",
+            headers=appAndContext.get_valid_authorization_header(0),
+        )
+
+        assert response.status_code == 501
+
+        # When implemented, this call should authorise a tool to have permission to edit
+        # records for this organisation.
+        response = client.post(
+            "/api/v1/reporting-orgs/ab851a83-a384-3eb9-caf0-68db8125b067/tools",
+            headers=appAndContext.get_valid_authorization_header(0),
+            json={"tid": "6a2d1ca1-b9c2-4bd3-a2a5-099178d1358d"},
+        )
+
+        assert response.status_code == 501
+
+        # When implemented, this call should revoke permission for this tool to have
+        # permission to edit records for this organisation.
+        response = client.delete(
+            "/api/v1/reporting-orgs/ab851a83-a384-3eb9-caf0-68db8125b067/tools/6a2d1ca1-b9c2-4bd3-a2a5-099178d1358d",
+            headers=appAndContext.get_valid_authorization_header(0),
+        )
+
+        assert response.status_code == 501

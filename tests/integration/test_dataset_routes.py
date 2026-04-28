@@ -107,17 +107,18 @@ def test_dataset_update_with_invalid_short_name(invalid_short_name: str) -> None
 
 
 @pytest.mark.parametrize(
-    "user,status_code",
+    "user,status_code,client_id",
     [
-        (0, 403),  # Editor
-        (1, 200),  # Admin
-        (2, 200),  # Superadmin
-        (3, 403),  # Contributor
-        (4, 200),  # Provider admin
-        (6, 500),  # Failure case, user is both provider admin and has an org role
+        (0, 403, "some_client"),  # Editor
+        (1, 200, "some_client"),  # Admin
+        (2, 200, "some_client"),  # Superadmin
+        (3, 403, "some_client"),  # Contributor
+        (4, 200, "wUtu4EuLSlstjasC"),  # Provider admin via Tool 1
+        (4, 403, "some_client"),  # Provider admin via another tool
+        (6, 500, "some_client"),  # Failure case, user is both provider admin and has an org role
     ],
 )
-def test_change_dataset_visibility(user: int, status_code: int) -> None:
+def test_change_dataset_visibility(user: int, status_code: int, client_id: str) -> None:
 
     appAndContext = MockedAppAndContext()
 
@@ -129,7 +130,7 @@ def test_change_dataset_visibility(user: int, status_code: int) -> None:
         # artefacts, so here we try to change the visibility to private.
         response = client.patch(
             "/api/v1/datasets/52ac525f-6375-079b-977d-68ecf3be2868",
-            headers=appAndContext.get_valid_authorization_header(user),
+            headers=appAndContext.get_valid_authorization_header(user, client_id=client_id),
             content=json.dumps(
                 {
                     "human_readable_name": "Aid Agency - Dataset 01",
@@ -146,18 +147,19 @@ def test_change_dataset_visibility(user: int, status_code: int) -> None:
 
 
 @pytest.mark.parametrize(
-    "user,status_code,organisation_id",
+    "user,status_code,organisation_id,client_id",
     [
-        (0, 201, "552376ae-2aa7-98ab-d800-68daa9bfeb4a"),  # Editor of org
-        (1, 201, "552376ae-2aa7-98ab-d800-68daa9bfeb4a"),  # Admin of org
-        (2, 201, "552376ae-2aa7-98ab-d800-68daa9bfeb4a"),  # Superadmin
-        (3, 201, "552376ae-2aa7-98ab-d800-68daa9bfeb4a"),  # Contributor of org
-        (3, 403, "ab851a83-a384-3eb9-caf0-68db8125b067"),  # Contributor pending in org
-        (4, 201, "552376ae-2aa7-98ab-d800-68daa9bfeb4a"),  # Provider admin via Tool One
-        (6, 500, "552376ae-2aa7-98ab-d800-68daa9bfeb4a"),  # Failure: has provider admin and org role
+        (0, 201, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client"),  # Editor of org
+        (1, 201, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client"),  # Admin of org
+        (2, 201, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client"),  # Superadmin
+        (3, 201, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client"),  # Contributor of org
+        (3, 403, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client"),  # Contributor pending in org
+        (4, 201, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "wUtu4EuLSlstjasC"),  # Provider admin via Tool One
+        (4, 403, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client"),  # Provider admin via another tool
+        (6, 500, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client"),  # Failure: has provider admin and org role
     ],
 )
-def test_create_dataset(user: int, status_code: int, organisation_id: str) -> None:
+def test_create_dataset(user: int, status_code: int, organisation_id: str, client_id: str) -> None:
 
     appAndContext = MockedAppAndContext()
 
@@ -167,7 +169,7 @@ def test_create_dataset(user: int, status_code: int, organisation_id: str) -> No
 
         response = client.post(
             "/api/v1/datasets",
-            headers=appAndContext.get_valid_authorization_header(user),
+            headers=appAndContext.get_valid_authorization_header(user, client_id=client_id),
             content=json.dumps(
                 {
                     "human_readable_name": "Aid Agency - Dataset 01",
@@ -185,18 +187,19 @@ def test_create_dataset(user: int, status_code: int, organisation_id: str) -> No
 
 
 @pytest.mark.parametrize(
-    "user,status_code,dataset_id",
+    "user,status_code,dataset_id,client_id",
     [
-        (0, 200, "52ac525f-6375-079b-977d-68ecf3be2868"),  # Editor of org
-        (1, 200, "52ac525f-6375-079b-977d-68ecf3be2868"),  # Admin of org
-        (2, 200, "52ac525f-6375-079b-977d-68ecf3be2868"),  # Superadmin
-        (3, 403, "52ac525f-6375-079b-977d-68ecf3be2868"),  # Contributor of org
-        (3, 403, "4ad2b196-aa31-983e-93d9-68ecf476a2c6"),  # Contributor pending in org
-        (4, 200, "52ac525f-6375-079b-977d-68ecf3be2868"),  # Provider admin via Tool One
-        (6, 500, "52ac525f-6375-079b-977d-68ecf3be2868"),  # Failure: has provider admin and org role
+        (0, 200, "52ac525f-6375-079b-977d-68ecf3be2868", "some_client"),  # Editor of org
+        (1, 200, "52ac525f-6375-079b-977d-68ecf3be2868", "some_client"),  # Admin of org
+        (2, 200, "52ac525f-6375-079b-977d-68ecf3be2868", "some_client"),  # Superadmin
+        (3, 403, "52ac525f-6375-079b-977d-68ecf3be2868", "some_client"),  # Contributor of org
+        (3, 403, "4ad2b196-aa31-983e-93d9-68ecf476a2c6", "some_client"),  # Contributor pending in org
+        (4, 200, "52ac525f-6375-079b-977d-68ecf3be2868", "wUtu4EuLSlstjasC"),  # Provider admin via Tool One
+        (4, 403, "52ac525f-6375-079b-977d-68ecf3be2868", "some_client"),  # Provider admin via another tool
+        (6, 500, "52ac525f-6375-079b-977d-68ecf3be2868", "some_client"),  # Failure: has provider admin and org role
     ],
 )
-def test_delete_dataset(user: int, status_code: int, dataset_id: str) -> None:
+def test_delete_dataset(user: int, status_code: int, dataset_id: str, client_id: str) -> None:
 
     appAndContext = MockedAppAndContext()
 
@@ -206,7 +209,7 @@ def test_delete_dataset(user: int, status_code: int, dataset_id: str) -> None:
 
         response = client.delete(
             f"/api/v1/datasets/{dataset_id}",
-            headers=appAndContext.get_valid_authorization_header(user),
+            headers=appAndContext.get_valid_authorization_header(user, client_id=client_id),
         )
 
         assert response.status_code == status_code

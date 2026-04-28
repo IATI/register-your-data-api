@@ -237,3 +237,27 @@ class UserReportingOrgRelationSingleResponse(pydantic.BaseModel):
     data: UserReportingOrgRelation
     error: str | None = pydantic.Field(None)
     status: str
+
+
+class ToolMetadata(pydantic.BaseModel):
+    id: uuid.UUID
+    name: str
+    provider: str
+
+
+class ToolListResponse(pydantic.BaseModel):
+    data: list[ToolMetadata]
+    error: str | None
+    status: str
+
+
+class UserRolesData(pydantic.BaseModel):
+    superadmin: bool
+    tools: list[uuid.UUID]
+    reporting_orgs: dict[uuid.UUID, str]
+
+
+class UserRolesResponse(pydantic.BaseModel):
+    data: UserRolesData
+    error: str | None
+    status: str

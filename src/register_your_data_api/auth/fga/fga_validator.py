@@ -1,17 +1,35 @@
+import collections
+import functools
 from uuid import UUID
 
 import pydantic
 
-from .models import FineGrainedAuthorisationRole, FineGrainedAuthorisationRoleAssociation
+from .models import FineGrainedAuthorisationRole, FineGrainedAuthorisationRoleAssociation, FineGrainedAuthorisationTool
 
 
 class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
 
     user_id: UUID
 
+    client_id: str
+
     fine_grained_authorisations: list[FineGrainedAuthorisationRoleAssociation] | None
 
     is_superadmin: bool
+
+    tools: list[FineGrainedAuthorisationTool]
+
+    @functools.cached_property
+    def _tool_id_map(self) -> dict[UUID, int]:
+        return {tool.id: index for index, tool in enumerate(self.tools)}
+
+    def get_tool_by_id(self, id: UUID) -> FineGrainedAuthorisationTool:
+        return self.tools[self._tool_id_map[id]]
+
+    def is_tool_same_as_client(self, tool_id: UUID) -> bool:
+        if self.get_tool_by_id(tool_id).client_id == self.client_id:
+            return True
+        return False
 
     def get_permissions_for_role(self, user_role: FineGrainedAuthorisationRole) -> list[str]:
         permissions: dict[FineGrainedAuthorisationRole, list[str]] = {
@@ -42,16 +60,35 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
         return permissions[user_role]
 
     def get_user_role_for_reporting_org(self, reporting_org_id: str | UUID) -> FineGrainedAuthorisationRole | None:
-        reporting_orgs = []  # type: list[FineGrainedAuthorisationRoleAssociation]
+        associations = []  # type: list[FineGrainedAuthorisationRoleAssociation]
         if self.fine_grained_authorisations is not None:
             id_as_uuid = reporting_org_id if isinstance(reporting_org_id, UUID) else UUID(reporting_org_id)
-            reporting_orgs = list(filter(lambda x: x.reporting_org == id_as_uuid, self.fine_grained_authorisations))
-
-        if len(reporting_orgs) >= 1:
-            return reporting_orgs[0].role
+            associations = list(filter(lambda x: x.reporting_org == id_as_uuid, self.fine_grained_authorisations))
 
         if self.is_superadmin:
             return FineGrainedAuthorisationRole.SUPER_ADMIN
+
+        if len(associations) == 0:
+            return None
+
+        if len(associations) == 1 and associations[0].role != FineGrainedAuthorisationRole.PROVIDER_ADMIN:
+            return associations[0].role
+
+        # Remaining associations should all be provider_admin.  Do a quick check that this is the case.
+        if collections.Counter([association.role for association in associations])[
+            FineGrainedAuthorisationRole.PROVIDER_ADMIN
+        ] != len(associations):
+            raise RuntimeError("Validator in an unknown state")
+
+        # If any role has a tool that matches the one the user is logged into then return provider admin.
+        if any(
+            [
+                self.is_tool_same_as_client(association.restricted_to_tool)
+                for association in associations
+                if association.restricted_to_tool is not None
+            ]
+        ):
+            return FineGrainedAuthorisationRole.PROVIDER_ADMIN
 
         return None
 
@@ -193,4 +230,7 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
     def get_users_reporting_orgs(self) -> list[UUID]:
         if self.fine_grained_authorisations is None:
             return []
-        return [fga.reporting_org for fga in self.fine_grained_authorisations]
+        return list(set([fga.reporting_org for fga in self.fine_grained_authorisations]))
+
+    def get_users_provider_admin_tools(self) -> list[FineGrainedAuthorisationTool]:
+        return self.tools

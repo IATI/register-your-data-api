@@ -25,6 +25,7 @@ async def get_user_authnz(
 
     try:
         users_fgas = context.fine_grained_auth_provider.get_user_fine_grained_permissions(current_user_id)
+        users_tools = context.fine_grained_auth_provider.get_tools_for_user(current_user_id)
     except FineGrainedAuthorisationIntegrityError as exc:
         trace_id: UUID = uuid4()
         raise RYDUserException(
@@ -41,7 +42,11 @@ async def get_user_authnz(
     is_superadmin = context.fine_grained_auth_provider.is_user_a_superadmin(current_user_id)
 
     user.fga_user_validator = FineGrainedAuthorisationUserValidator(
-        user_id=current_user_id, fine_grained_authorisations=users_fgas, is_superadmin=is_superadmin
+        user_id=current_user_id,
+        fine_grained_authorisations=users_fgas,
+        is_superadmin=is_superadmin,
+        client_id=user.client_id,
+        tools=users_tools,
     )
 
     return user

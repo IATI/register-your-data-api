@@ -631,3 +631,47 @@ def get_reporting_org_datasets(
 def get_reporting_org_actions(crm: SuiteCRM, org_id: str) -> list[ReportingOrgAction]:
     # TODO:
     return []
+
+
+@router.get("/{org_id}/tools")
+def get_reporting_org_tool_list(
+    org_id: uuid.UUID,
+    request: starlette.requests.Request,
+    user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:tool"]),
+) -> JSONResponse:
+
+    raise fastapi.HTTPException(
+        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Not yet implemented",
+    )
+
+
+@router.post("/{org_id}/tools")
+def authorise_tool_permission_for_reporting_org(
+    org_id: uuid.UUID,
+    request: starlette.requests.Request,
+    user: auth_models.UserAndCredentials = Security(
+        authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:tool:update"]
+    ),
+) -> JSONResponse:
+
+    raise fastapi.HTTPException(
+        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Not yet implemented",
+    )
+
+
+@router.delete("/{org_id}/tools/{tool_id}")
+def revoke_tool_permission_for_reporting_org(
+    org_id: uuid.UUID,
+    tool_id: uuid.UUID,
+    request: starlette.requests.Request,
+    user: auth_models.UserAndCredentials = Security(
+        authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:tool:update"]
+    ),
+) -> JSONResponse:
+
+    raise fastapi.HTTPException(
+        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Not yet implemented",
+    )
