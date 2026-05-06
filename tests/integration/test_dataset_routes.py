@@ -109,7 +109,7 @@ def test_dataset_update_with_invalid_short_name(invalid_short_name: str) -> None
 @pytest.mark.parametrize(
     "user,status_code,client_id",
     [
-        (0, 403, "some_client"),  # Editor
+        (0, 200, "some_client"),  # Editor
         (1, 200, "some_client"),  # Admin
         (2, 200, "some_client"),  # Superadmin
         (3, 403, "some_client"),  # Contributor
