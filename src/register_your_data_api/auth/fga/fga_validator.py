@@ -37,8 +37,12 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
             FineGrainedAuthorisationRole.CONTRIBUTOR: ["read-org", "create-dataset", "read-dataset", "update-dataset"],
         }
         permissions[FineGrainedAuthorisationRole.EDITOR] = [
-            *permissions[FineGrainedAuthorisationRole.CONTRIBUTOR],
+            "read-org",
             "update-org",
+            "read-dataset",
+            "create-dataset",
+            "update-dataset",
+            "update-dataset-visibility",
             "delete-dataset",
         ]
         permissions[FineGrainedAuthorisationRole.PROVIDER_ADMIN] = [
@@ -51,11 +55,15 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
             "delete-dataset",
         ]
         permissions[FineGrainedAuthorisationRole.ADMIN] = [
-            *permissions[FineGrainedAuthorisationRole.EDITOR],
+            "read-org",
             "update-org",
             "delete-org",
-            "set-org-user-authz",
+            "read-dataset",
+            "create-dataset",
+            "update-dataset",
             "update-dataset-visibility",
+            "delete-dataset",
+            "set-org-user-authz",
         ]
         return permissions[user_role]
 

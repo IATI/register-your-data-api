@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.6] - 2026-05-06
+
+### Changed
+
+- Upgraded `libsuitecrm` to 0.5.2 to bring in fix for SuiteCRM's over-zealous HTML escaping.
+
+### Fixed
+
+- Updated the EDITOR role to have permission to set visibility on datasets.
+
 ## [0.3.5] - 2026-04-28
 
 ### Added
