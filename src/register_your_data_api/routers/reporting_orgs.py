@@ -488,76 +488,73 @@ def get_reporting_org_users(
 
     crm: SuiteCRM = context.suitecrm_client_factory.get_client()
 
-    current_user_role_for_ro = user.validator.get_user_role_for_reporting_org(org_id)
-
     users_for_org_from_suitecrm = crm.get_relationship("Accounts", str(org_id), "Contacts")
 
-    users_for_org_from_fga = context._fga_provider.get_user_associations_for_org(org_id)
+    users_for_org_from_fga = context.fine_grained_auth_provider.get_user_associations_for_org(org_id)
 
     user_ids_from_fga = {str(u.user) for u in users_for_org_from_fga}
 
-    names_emails_from_suitecrm = {
+    # names and emails for non-provider admins come from SuiteCRM
+    names_emails_for_org_users = {
         u["id"]: (u["attributes"]["last_name"], u["attributes"]["email1"])
         for u in users_for_org_from_suitecrm["data"]
         if u["id"] in user_ids_from_fga
     }
 
-    # iterate over the provider admins, and add their names/emails to the dict
-    for provider_admin in users_for_org_from_fga:
-        if provider_admin.role == fga_models.FineGrainedAuthorisationRole.PROVIDER_ADMIN:
-            filters = Filter()
-            filters.equal("id", str(provider_admin.user))
-            crm_user = crm.get_records("Contacts", fields=["last_name", "email1"], filters=filters)
-            if "data" in crm_user and len(crm_user["data"]) > 0:
-                names_emails_from_suitecrm[crm_user["data"][0]["id"]] = (
-                    crm_user["data"][0]["attributes"]["last_name"],
-                    crm_user["data"][0]["attributes"]["email1"],
-                )
+    # names and emails for provider admins come from FGA DB, so iterate over the provider admins to add them
+    # BUT, we only pull these details in when needed, to avoid making extra
+    # calls to SuiteCRM for every request when the data isn't needed
+    if user.validator.is_superadmin:
+        for user_for_org in users_for_org_from_fga:
+            if user_for_org.role == fga_models.FineGrainedAuthorisationRole.PROVIDER_ADMIN:
+                filters = Filter()
+                filters.equal("id", str(user_for_org.user))
+                crm_user = crm.get_records("Contacts", fields=["last_name", "email1"], filters=filters)
+                if "data" in crm_user and len(crm_user["data"]) > 0:
+                    names_emails_for_org_users[crm_user["data"][0]["id"]] = (
+                        crm_user["data"][0]["attributes"]["last_name"],
+                        crm_user["data"][0]["attributes"]["email1"],
+                    )
 
-    user_ids_in_fga_not_suitecrm = user_ids_from_fga - {*names_emails_from_suitecrm.keys()}
-    if user_ids_in_fga_not_suitecrm:
-        if any(
-            [
-                u.role != fga_models.FineGrainedAuthorisationRole.PROVIDER_ADMIN and u.user == uuid.UUID(user_id)
-                for u in users_for_org_from_fga
-                for user_id in user_ids_in_fga_not_suitecrm
-            ]
-        ):
-            trace_id: uuid.UUID = uuid.uuid4()
-            raise RYDUserException(
-                user.user_id_crm,
-                user.client_id,
-                500,
-                app_msg=(
-                    f"GET request to reporting-orgs/{org_id}/users has found "
-                    f"users that are not associated with that org in SuiteCRM: {user_ids_in_fga_not_suitecrm}. "
-                    f"Trace id: {trace_id}"
-                ),
-                audit_msg=(
-                    f"GET request to reporting-orgs/{org_id}/users by user id: {user.user_id_crm} "
-                    f"but the following users associated with reporting org {org_id} in the FGA data "
-                    f"store are not associated with that org in SuiteCRM: {user_ids_in_fga_not_suitecrm}. "
-                    f"Trace id: {trace_id}"
-                ),
-                public_msg=(
-                    "There is a problem getting the user list associated with this organisation. "
-                    f"Please contact IATI Support quoting this error trace id: {trace_id}"
-                ),
-            )
+    user_ids_in_fga_not_suitecrm = user_ids_from_fga - {*names_emails_for_org_users.keys()}
+    if user_ids_in_fga_not_suitecrm and any(
+        [
+            u.role != fga_models.FineGrainedAuthorisationRole.PROVIDER_ADMIN and u.user == uuid.UUID(user_id)
+            for u in users_for_org_from_fga
+            for user_id in user_ids_in_fga_not_suitecrm
+        ]
+    ):
+        trace_id: uuid.UUID = uuid.uuid4()
+        raise RYDUserException(
+            user.user_id_crm,
+            user.client_id,
+            500,
+            app_msg=(
+                f"GET request to reporting-orgs/{org_id}/users has found "
+                f"users that are not associated with that org in SuiteCRM: {user_ids_in_fga_not_suitecrm}. "
+                f"Trace id: {trace_id}"
+            ),
+            audit_msg=(
+                f"GET request to reporting-orgs/{org_id}/users by user id: {user.user_id_crm} "
+                f"but the following users associated with reporting org {org_id} in the FGA data "
+                f"store are not associated with that org in SuiteCRM: {user_ids_in_fga_not_suitecrm}. "
+                f"Trace id: {trace_id}"
+            ),
+            public_msg=(
+                "There is a problem getting the user list associated with this organisation. "
+                f"Please contact IATI Support quoting this error trace id: {trace_id}"
+            ),
+        )
 
     users_for_org = [
         CRMUser(
             id=str(u.user),
-            name=names_emails_from_suitecrm[str(u.user)][0],
-            email=names_emails_from_suitecrm[str(u.user)][1],
+            name=names_emails_for_org_users[str(u.user)][0],
+            email=names_emails_for_org_users[str(u.user)][1],
             role=get_fga_role_as_str(u.role),
         )
         for u in users_for_org_from_fga
-        if (
-            u.role != fga_models.FineGrainedAuthorisationRole.PROVIDER_ADMIN
-            or current_user_role_for_ro == fga_models.FineGrainedAuthorisationRole.PROVIDER_ADMIN
-            or user.validator.is_superadmin
-        )
+        if (u.role != fga_models.FineGrainedAuthorisationRole.PROVIDER_ADMIN or user.validator.is_superadmin)
     ]
 
     users_for_org.sort(key=lambda u: u.name.lower())

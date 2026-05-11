@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.7] - 2026-05-11
+
+### Fixed
+
+- Filtered out the provider admins from the list of users returned for reporting orgs.
+
 ## [0.3.6] - 2026-05-06
 
 ### Changed

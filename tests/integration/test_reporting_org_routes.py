@@ -713,8 +713,6 @@ def test_reporting_org_list_datasets_detail(
                 "698e0c1f-4e80-faa9-6533-68de801d1735",
                 "bea511d3-c7a7-4097-55ed-68de81e94921",
                 "7625122c-f752-40dc-a577-5cb49e13de2a",
-                "b46b88bd-05e6-4cb8-8b6a-a2c47fcd666d",
-                "5c633101-42be-47ac-81e7-43d6ecb503e3",
             },
         ),
         (0, "da17734d-3926-47ef-8563-8a1b0247ed11", True, []),
