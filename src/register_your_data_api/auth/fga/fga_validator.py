@@ -121,6 +121,22 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
 
         return False
 
+    def user_can_read_reporting_org_tool_authorisations(self, reporting_org_id: UUID) -> bool:
+        """"""
+
+        if self.is_superadmin:
+            return True
+
+        role_for_org: FineGrainedAuthorisationRole | None = self.get_user_role_for_reporting_org(reporting_org_id)
+
+        # Provider admins shouldn't have permission to view tools, because that would give them permission to see
+        # which other tools a user has authorised
+        if role_for_org is not None and role_for_org != FineGrainedAuthorisationRole.PROVIDER_ADMIN:
+            if "read-org" in self.get_permissions_for_role(role_for_org):
+                return True
+
+        return False
+
     def user_can_update_reporting_org(self, reporting_org_id: UUID) -> bool:
 
         if self.is_superadmin:

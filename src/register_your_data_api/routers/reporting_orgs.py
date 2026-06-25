@@ -36,6 +36,8 @@ from ..data_handling.data_schemas import (
     ReportingOrgCreateModel,
     ReportingOrgUpdateModel,
     ReportingOrgUserCreateModel,
+    ToolListResponse,
+    ToolMetadata,
     UserReportingOrgDiscoverableMetadataRelation,
     UserReportingOrgRelation,
     UserReportingOrgRelationSingleResponse,
@@ -635,11 +637,30 @@ def get_reporting_org_tool_list(
     org_id: uuid.UUID,
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:tool"]),
-) -> JSONResponse:
+) -> ToolListResponse:
+    """Handler for endpoint which returns a list of the tools that this organisation has authorised"""
 
-    raise fastapi.HTTPException(
-        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Not yet implemented",
+    # Check that the user can read/manage the tool authorisations
+    context: Context = request.app.state.context
+
+    if not user.validator.user_can_read_reporting_org_tool_authorisations(org_id):
+        context.audit_logger.error(
+            f"Request to read reporting org tools for org id: {org_id} by unauthorised user id: {user.user_id_crm}"
+        )
+        raise HTTPException(
+            status_code=fastapi.status.HTTP_403_FORBIDDEN,
+            detail="There is a problem with your credentials.  If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry.",
+        )
+
+    tools_authorised_for_org: list[fga_models.FineGrainedAuthorisationTool] = (
+        context.fine_grained_auth_provider.get_tools_for_organisation(org_id)
+    )
+
+    return ToolListResponse(
+        status="success",
+        error=None,
+        data=[ToolMetadata(**db_tool.model_dump()) for db_tool in tools_authorised_for_org],
     )
 
 

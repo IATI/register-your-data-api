@@ -268,3 +268,15 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
 
     def is_user_a_tool_adminuser(self, user: UUID) -> bool:
         return len(self.get_tools_for_user(user)) > 0
+
+    def get_tools_for_organisation(self, org: UUID) -> list[FineGrainedAuthorisationTool]:
+        """Get a list of the tools authorised by the reporting organisation."""
+
+        with Session(self._engine) as session:
+            db_tools = session.exec(
+                select(ToolDbModel).join(ToolAuthorisationDbModel).where(ToolAuthorisationDbModel.reporting_org == org)
+            ).all()
+
+            return [FineGrainedAuthorisationTool(**db_tool.model_dump()) for db_tool in db_tools]
+
+        return []
