@@ -751,15 +751,6 @@ def test_reporting_org_tool_management_not_implemented() -> None:
     fastAPIapp = appAndContext.get_test_app()
 
     with TestClient(fastAPIapp) as client:
-        # When implemented, this call should return a list of tools that have permission to
-        # edit records for an organisation.
-        response = client.get(
-            "/api/v1/reporting-orgs/ab851a83-a384-3eb9-caf0-68db8125b067/tools",
-            headers=appAndContext.get_valid_authorization_header(0),
-        )
-
-        assert response.status_code == 501
-
         # When implemented, this call should authorise a tool to have permission to edit
         # records for this organisation.
         response = client.post(
@@ -778,3 +769,184 @@ def test_reporting_org_tool_management_not_implemented() -> None:
         )
 
         assert response.status_code == 501
+
+
+def test_reporting_org_tool_list_returns_authorised_tools() -> None:
+    """Tests that GET /reporting-orgs/{oid}/tools returns the tools authorised for that org.
+
+    Tool One (configured in tests/helpers/mocking.py) is authorised for org
+    552376ae-2aa7-98ab-d800-68daa9bfeb4a; Tool Two has no authorisation for any
+    org and so must not be returned.
+    """
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    org_id = "552376ae-2aa7-98ab-d800-68daa9bfeb4a"
+
+    with TestClient(fastAPIapp) as client:
+        response = client.get(
+            f"/api/v1/reporting-orgs/{org_id}/tools",
+            headers=appAndContext.get_valid_authorization_header(0),
+        )
+
+        assert response.status_code == 200
+
+        resp_json = response.json()
+
+        assert resp_json["status"] == "success"
+
+        tools_by_id = {tool["id"]: tool for tool in resp_json["data"]}
+
+        tool_one_id = str(appAndContext._mocked_tool_ids[0])
+        tool_two_id = str(appAndContext._mocked_tool_ids[1])
+
+        # Tool One is authorised for this org and should be returned.
+        assert tool_one_id in tools_by_id
+        assert tools_by_id[tool_one_id]["name"] == "Tool One"
+        assert tools_by_id[tool_one_id]["provider"] == "Tool Maker"
+
+        # Tool Two has no authorisation for any org and should not be returned.
+        assert tool_two_id not in tools_by_id
+
+
+def test_reporting_org_tool_list_forbidden_for_provider_admin() -> None:
+    """A provider admin must not be able to read an org's authorised tool list.
+
+    User 4 is a provider admin for Tool One, which is authorised for org
+    552376ae-2aa7-98ab-d800-68daa9bfeb4a.  Although they can act on that org through their
+    tool, they do not belong to it, so reading its tool authorisations is forbidden.
+    """
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    org_id = "552376ae-2aa7-98ab-d800-68daa9bfeb4a"
+
+    with TestClient(fastAPIapp) as client:
+        response = client.get(
+            f"/api/v1/reporting-orgs/{org_id}/tools",
+            headers=appAndContext.get_valid_authorization_header(4, client_id="wUtu4EuLSlstjasC"),
+        )
+
+        assert response.status_code == 403
+
+
+def test_reporting_org_authorise_tool_adds_tool() -> None:
+    """A tool can be authorised for an organisation via POST /reporting-orgs/{oid}/tools.
+
+    Tool Two is not authorised for any org in the mock data (tests/helpers/mocking.py).
+    After authorising it for org 552376ae-2aa7-98ab-d800-68daa9bfeb4a it should appear in
+    that org's authorised tool list.
+    """
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    org_id = "552376ae-2aa7-98ab-d800-68daa9bfeb4a"
+    tool_two_id = str(appAndContext._mocked_tool_ids[1])
+
+    with TestClient(fastAPIapp) as client:
+        # User 1 is an ADMIN of this org and so may authorise tools for it.
+        response = client.post(
+            f"/api/v1/reporting-orgs/{org_id}/tools",
+            headers=appAndContext.get_valid_authorization_header(1),
+            json={"tid": tool_two_id},
+        )
+
+        assert response.status_code == 201
+        assert response.json()["status"] == "success"
+
+        # The newly authorised tool should now appear in the org's tool list.
+        response = client.get(
+            f"/api/v1/reporting-orgs/{org_id}/tools",
+            headers=appAndContext.get_valid_authorization_header(1),
+        )
+
+        assert response.status_code == 200
+        authorised_tool_ids = {tool["id"] for tool in response.json()["data"]}
+        assert tool_two_id in authorised_tool_ids
+
+
+@pytest.mark.parametrize(
+    "user,reporting_org_id,client_id,status_code",
+    [
+        (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 201),  # EDITOR of org
+        (1, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 201),  # ADMIN of org
+        (2, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 201),  # Superadmin
+        (1, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client", 403),  # Not a member of this org
+        (4, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "wUtu4EuLSlstjasC", 403),  # Provider admin - not an org member
+        (6, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 500),  # Integrity error: org role + provider admin
+    ],
+)
+def test_reporting_org_authorise_tool_permissions(
+    user: int, reporting_org_id: str, client_id: str, status_code: int
+) -> None:
+    """Only users belonging to the org, or superadmins, may authorise a tool for it.
+
+    Provider admins (user 4) are deliberately excluded: although they can act on an org
+    through their tool, they do not belong to the org and so must not be able to authorise
+    further tools.  Tool Two is used because it is not authorised for any org, so each
+    request exercises the permission check rather than the already-authorised path.
+    """
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    tool_two_id = str(appAndContext._mocked_tool_ids[1])
+
+    with TestClient(fastAPIapp) as client:
+        response = client.post(
+            f"/api/v1/reporting-orgs/{reporting_org_id}/tools",
+            headers=appAndContext.get_valid_authorization_header(user, client_id=client_id),
+            json={"tid": tool_two_id},
+        )
+
+        assert response.status_code == status_code
+
+
+def test_reporting_org_authorise_tool_already_authorised() -> None:
+    """Authorising a tool that is already authorised for the org returns 409 Conflict."""
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    # Tool One is already authorised for org 552376ae-2aa7-98ab-d800-68daa9bfeb4a.
+    org_id = "552376ae-2aa7-98ab-d800-68daa9bfeb4a"
+    tool_one_id = str(appAndContext._mocked_tool_ids[0])
+
+    with TestClient(fastAPIapp) as client:
+        response = client.post(
+            f"/api/v1/reporting-orgs/{org_id}/tools",
+            headers=appAndContext.get_valid_authorization_header(1),  # ADMIN of org
+            json={"tid": tool_one_id},
+        )
+
+        assert response.status_code == 409
+        assert response.json()["status"] == "failed"
+
+
+def test_reporting_org_authorise_tool_nonexistent() -> None:
+    """Authorising a tool that does not exist returns 404 Not Found."""
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    org_id = "552376ae-2aa7-98ab-d800-68daa9bfeb4a"
+    nonexistent_tool_id = "00000000-0000-0000-0000-000000000000"
+
+    with TestClient(fastAPIapp) as client:
+        response = client.post(
+            f"/api/v1/reporting-orgs/{org_id}/tools",
+            headers=appAndContext.get_valid_authorization_header(1),  # ADMIN of org
+            json={"tid": nonexistent_tool_id},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["status"] == "failed"
