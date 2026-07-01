@@ -745,32 +745,6 @@ def test_reporting_org_list_users(
             assert users_returned == visible_users
 
 
-def test_reporting_org_tool_management_not_implemented() -> None:
-    appAndContext = MockedAppAndContext()
-
-    fastAPIapp = appAndContext.get_test_app()
-
-    with TestClient(fastAPIapp) as client:
-        # When implemented, this call should authorise a tool to have permission to edit
-        # records for this organisation.
-        response = client.post(
-            "/api/v1/reporting-orgs/ab851a83-a384-3eb9-caf0-68db8125b067/tools",
-            headers=appAndContext.get_valid_authorization_header(0),
-            json={"tid": "6a2d1ca1-b9c2-4bd3-a2a5-099178d1358d"},
-        )
-
-        assert response.status_code == 501
-
-        # When implemented, this call should revoke permission for this tool to have
-        # permission to edit records for this organisation.
-        response = client.delete(
-            "/api/v1/reporting-orgs/ab851a83-a384-3eb9-caf0-68db8125b067/tools/6a2d1ca1-b9c2-4bd3-a2a5-099178d1358d",
-            headers=appAndContext.get_valid_authorization_header(0),
-        )
-
-        assert response.status_code == 501
-
-
 def test_reporting_org_tool_list_returns_authorised_tools() -> None:
     """Tests that GET /reporting-orgs/{oid}/tools returns the tools authorised for that org.
 
@@ -877,6 +851,7 @@ def test_reporting_org_authorise_tool_adds_tool() -> None:
         (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 201),  # EDITOR of org
         (1, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 201),  # ADMIN of org
         (2, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 201),  # Superadmin
+        (3, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 403),  # CONTRIBUTOR of org - cannot authorise tools
         (1, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client", 403),  # Not a member of this org
         (4, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "wUtu4EuLSlstjasC", 403),  # Provider admin - not an org member
         (6, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 500),  # Integrity error: org role + provider admin
@@ -885,12 +860,13 @@ def test_reporting_org_authorise_tool_adds_tool() -> None:
 def test_reporting_org_authorise_tool_permissions(
     user: int, reporting_org_id: str, client_id: str, status_code: int
 ) -> None:
-    """Only users belonging to the org, or superadmins, may authorise a tool for it.
+    """Only ADMINs and EDITORs of the org, or superadmins, may authorise a tool for it.
 
-    Provider admins (user 4) are deliberately excluded: although they can act on an org
-    through their tool, they do not belong to the org and so must not be able to authorise
-    further tools.  Tool Two is used because it is not authorised for any org, so each
-    request exercises the permission check rather than the already-authorised path.
+    Contributors (user 3) belong to the org but only have read access, so they cannot
+    authorise tools.  Provider admins (user 4) are also excluded: although they can act on an
+    org through their tool, they do not belong to the org and so must not be able to authorise
+    further tools.  Tool Two is used because it is not authorised for any org, so each request
+    tests the authorise/permission add check rather than the already-authorised path.
     """
 
     appAndContext = MockedAppAndContext()
@@ -946,6 +922,105 @@ def test_reporting_org_authorise_tool_nonexistent() -> None:
             f"/api/v1/reporting-orgs/{org_id}/tools",
             headers=appAndContext.get_valid_authorization_header(1),  # ADMIN of org
             json={"tid": nonexistent_tool_id},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["status"] == "failed"
+
+
+def test_reporting_org_revoke_tool_removes_tool() -> None:
+    """A tool's authorisation can be revoked via DELETE /reporting-orgs/{oid}/tools/{tid}.
+
+    Tool One is authorised for org 552376ae-2aa7-98ab-d800-68daa9bfeb4a in the
+    mock data (tests/helpers/mocking.py).  After revoking it the tool should no
+    longer appear in that org's authorised tool list.
+    """
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    org_id = "552376ae-2aa7-98ab-d800-68daa9bfeb4a"
+    tool_one_id = str(appAndContext._mocked_tool_ids[0])
+
+    with TestClient(fastAPIapp) as client:
+        # User 1 is an ADMIN of this org and so may revoke tools for it.
+        response = client.delete(
+            f"/api/v1/reporting-orgs/{org_id}/tools/{tool_one_id}",
+            headers=appAndContext.get_valid_authorization_header(1),
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
+        # The revoked tool should no longer appear in the org's tool list.
+        response = client.get(
+            f"/api/v1/reporting-orgs/{org_id}/tools",
+            headers=appAndContext.get_valid_authorization_header(1),
+        )
+
+        assert response.status_code == 200
+        authorised_tool_ids = {tool["id"] for tool in response.json()["data"]}
+        assert tool_one_id not in authorised_tool_ids
+
+
+@pytest.mark.parametrize(
+    "user,reporting_org_id,client_id,status_code",
+    [
+        (0, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 200),  # EDITOR of org
+        (1, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 200),  # ADMIN of org
+        (2, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 200),  # Superadmin
+        (3, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 403),  # CONTRIBUTOR of org - cannot revoke tools
+        (1, "ab851a83-a384-3eb9-caf0-68db8125b067", "some_client", 403),  # Not a member of this org
+        (4, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "wUtu4EuLSlstjasC", 403),  # Provider admin - not an org member
+        (6, "552376ae-2aa7-98ab-d800-68daa9bfeb4a", "some_client", 500),  # Integrity error: org role + provider admin
+    ],
+)
+def test_reporting_org_revoke_tool_permissions(
+    user: int, reporting_org_id: str, client_id: str, status_code: int
+) -> None:
+    """Only ADMINs and EDITORs of the org, or superadmins, may revoke a tool's authorisation.
+
+    Tool One is authorised for both 552376ae-2aa7-98ab-d800-68daa9bfeb4a and
+    ab851a83-a384-3eb9-caf0-68db8125b067, so each request targets a real
+    authorisation and exercises the permission check.
+    """
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    tool_one_id = str(appAndContext._mocked_tool_ids[0])
+
+    with TestClient(fastAPIapp) as client:
+        response = client.delete(
+            f"/api/v1/reporting-orgs/{reporting_org_id}/tools/{tool_one_id}",
+            headers=appAndContext.get_valid_authorization_header(user, client_id=client_id),
+        )
+
+        assert response.status_code == status_code
+
+
+@pytest.mark.parametrize(
+    "tool_id",
+    [
+        "6a2d1ca1-b9c2-4bd3-a2a5-099178d1358d",  # Tool Two - exists but is not authorised for this org
+        "00000000-0000-0000-0000-000000000000",  # No such tool
+    ],
+)
+def test_reporting_org_revoke_tool_not_authorised(tool_id: str) -> None:
+    """Revoking a tool that is not authorised for the org returns 404 Not Found."""
+
+    appAndContext = MockedAppAndContext()
+
+    fastAPIapp = appAndContext.get_test_app()
+
+    org_id = "552376ae-2aa7-98ab-d800-68daa9bfeb4a"
+
+    with TestClient(fastAPIapp) as client:
+        response = client.delete(
+            f"/api/v1/reporting-orgs/{org_id}/tools/{tool_id}",
+            headers=appAndContext.get_valid_authorization_header(1),  # ADMIN of org
         )
 
         assert response.status_code == 404
