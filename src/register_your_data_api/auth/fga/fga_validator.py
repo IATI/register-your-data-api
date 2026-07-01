@@ -137,6 +137,26 @@ class FineGrainedAuthorisationUserValidator(pydantic.BaseModel):
 
         return False
 
+    def user_can_update_reporting_org_tool_authorisations(self, reporting_org_id: UUID) -> bool:
+        """Whether the user may authorise or revoke a tool's permissions for an org.
+
+        Only ADMINs and EDITORs of the org (and superadmins) may manage tool
+        authorisations: the check requires the "update-org" permission, which
+        contributors do not have.  Provider admins are also excluded because they
+        shouldn't be able to change the list of tools the user has authorised.
+        """
+
+        if self.is_superadmin:
+            return True
+
+        role_for_org: FineGrainedAuthorisationRole | None = self.get_user_role_for_reporting_org(reporting_org_id)
+
+        if role_for_org is not None and role_for_org != FineGrainedAuthorisationRole.PROVIDER_ADMIN:
+            if "update-org" in self.get_permissions_for_role(role_for_org):
+                return True
+
+        return False
+
     def user_can_update_reporting_org(self, reporting_org_id: UUID) -> bool:
 
         if self.is_superadmin:
