@@ -268,3 +268,46 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
 
     def is_user_a_tool_adminuser(self, user: UUID) -> bool:
         return len(self.get_tools_for_user(user)) > 0
+
+    def get_tools_for_organisation(self, org: UUID) -> list[FineGrainedAuthorisationTool]:
+        """Get a list of the tools authorised by the reporting organisation."""
+
+        with Session(self._engine) as session:
+            db_tools = session.exec(
+                select(ToolDbModel).join(ToolAuthorisationDbModel).where(ToolAuthorisationDbModel.reporting_org == org)
+            ).all()
+
+            return [FineGrainedAuthorisationTool(**db_tool.model_dump()) for db_tool in db_tools]
+
+        return []
+
+    def get_tool_by_id(self, tool_id: UUID) -> FineGrainedAuthorisationTool | None:
+        """Get a tool by its id, or None if no such tool exists."""
+
+        with Session(self._engine) as session:
+            db_tool = session.exec(select(ToolDbModel).where(ToolDbModel.id == tool_id)).first()
+
+            if db_tool is None:
+                return None
+
+            return FineGrainedAuthorisationTool(**db_tool.model_dump())
+
+    def authorise_tool_for_organisation(self, tool_id: UUID, reporting_org_id: UUID) -> None:
+        """Authorise a tool to act for a reporting organisation."""
+
+        tool_authorisation_db = ToolAuthorisationDbModel(tool=tool_id, reporting_org=reporting_org_id)
+        with Session(self._engine) as session:
+            session.add(tool_authorisation_db)
+            session.commit()
+
+    def revoke_tool_authorisation_for_organisation(self, tool_id: UUID, reporting_org_id: UUID) -> None:
+        """Revoke a tool's authorisation to act for a reporting organisation."""
+
+        delete_cmd = delete(ToolAuthorisationDbModel).where(
+            (ToolAuthorisationDbModel.tool == tool_id)  # type: ignore
+            & (ToolAuthorisationDbModel.reporting_org == reporting_org_id)
+        )
+
+        with Session(self._engine) as session:
+            session.exec(delete_cmd)
+            session.commit()
