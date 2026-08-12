@@ -80,3 +80,23 @@ class FineGrainedAuthorisationProvider(ABC):
     def is_user_a_tool_adminuser(self, user: UUID) -> bool:
         """Returns True is user is an admin user for tools, else False"""
         raise NotImplementedError
+
+    @abstractmethod
+    def get_tools_for_organisation(self, org: UUID) -> list[FineGrainedAuthorisationTool]:
+        """Get a list of the tools authorised by the reporting organisation."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_tool_by_id(self, tool_id: UUID) -> FineGrainedAuthorisationTool | None:
+        """Get a tool by its id, or None if no such tool exists."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def authorise_tool_for_organisation(self, tool_id: UUID, reporting_org_id: UUID) -> None:
+        """Authorise a tool to act for a reporting organisation."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def revoke_tool_authorisation_for_organisation(self, tool_id: UUID, reporting_org_id: UUID) -> None:
+        """Revoke a tool's authorisation to act for a reporting organisation."""
+        raise NotImplementedError

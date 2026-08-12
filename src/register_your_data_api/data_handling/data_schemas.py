@@ -27,6 +27,12 @@ class OrganisationId(pydantic.BaseModel):
         return str(self.oid)
 
 
+class ToolId(pydantic.BaseModel):
+    """Model for the authorise tool payload"""
+
+    tid: uuid.UUID
+
+
 class CRMUser(pydantic.BaseModel):
     id: str
     name: str

@@ -36,6 +36,9 @@ from ..data_handling.data_schemas import (
     ReportingOrgCreateModel,
     ReportingOrgUpdateModel,
     ReportingOrgUserCreateModel,
+    ToolId,
+    ToolListResponse,
+    ToolMetadata,
     UserReportingOrgDiscoverableMetadataRelation,
     UserReportingOrgRelation,
     UserReportingOrgRelationSingleResponse,
@@ -635,26 +638,99 @@ def get_reporting_org_tool_list(
     org_id: uuid.UUID,
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:tool"]),
-) -> JSONResponse:
+) -> ToolListResponse:
+    """Handler for endpoint which returns a list of the tools that this organisation has authorised"""
 
-    raise fastapi.HTTPException(
-        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Not yet implemented",
+    # Check that the user can read/manage the tool authorisations
+    context: Context = request.app.state.context
+
+    if not user.validator.user_can_read_reporting_org_tool_authorisations(org_id):
+        context.audit_logger.error(
+            f"Request to read reporting org tools for org id: {org_id} by unauthorised user id: {user.user_id_crm}"
+        )
+        raise HTTPException(
+            status_code=fastapi.status.HTTP_403_FORBIDDEN,
+            detail="There is a problem with your credentials.  If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry.",
+        )
+
+    tools_authorised_for_org: list[fga_models.FineGrainedAuthorisationTool] = (
+        context.fine_grained_auth_provider.get_tools_for_organisation(org_id)
+    )
+
+    return ToolListResponse(
+        status="success",
+        error=None,
+        data=[ToolMetadata(**db_tool.model_dump()) for db_tool in tools_authorised_for_org],
     )
 
 
 @router.post("/{org_id}/tools")
 def authorise_tool_permission_for_reporting_org(
     org_id: uuid.UUID,
+    payload: ToolId,
     request: starlette.requests.Request,
     user: auth_models.UserAndCredentials = Security(
         authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:tool:update"]
     ),
 ) -> JSONResponse:
+    """Handler for endpoint which authorises a tool to act for a reporting organisation"""
 
-    raise fastapi.HTTPException(
-        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Not yet implemented",
+    context: Context = request.app.state.context
+
+    # Check that the user can manage the tool authorisations for this org
+    if not user.validator.user_can_update_reporting_org_tool_authorisations(org_id):
+        context.audit_logger.error(
+            f"Request to authorise a tool for org id: {org_id} by unauthorised user id: {user.user_id_crm}"
+        )
+        raise HTTPException(
+            status_code=fastapi.status.HTTP_403_FORBIDDEN,
+            detail="There is a problem with your credentials.  If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry.",
+        )
+
+    # The tool being authorised must exist.
+    assert_precondition_met(
+        user.user_id_crm,
+        user.client_id,
+        condition_func=lambda: context.fine_grained_auth_provider.get_tool_by_id(payload.tid) is not None,
+        status_code=fastapi.status.HTTP_404_NOT_FOUND,
+        audit_log_msg=(
+            f"Request to authorise non-existent tool id: {payload.tid} for org id: {org_id} "
+            f"by user id: {user.user_id_crm}"
+        ),
+        public_msg=f"There is no tool with ID {str(payload.tid)}.",
+    )
+
+    # The tool must not already be authorised for this org.
+    assert_precondition_met(
+        user.user_id_crm,
+        user.client_id,
+        condition_func=lambda: payload.tid
+        not in {tool.id for tool in context.fine_grained_auth_provider.get_tools_for_organisation(org_id)},
+        status_code=fastapi.status.HTTP_409_CONFLICT,
+        audit_log_msg=(
+            f"Request to authorise tool id: {payload.tid} for org id: {org_id} by user id: "
+            f"{user.user_id_crm} but the tool is already authorised."
+        ),
+        public_msg=f"Tool with ID {str(payload.tid)} is already authorised for this organisation.",
+    )
+
+    context.fine_grained_auth_provider.authorise_tool_for_organisation(payload.tid, org_id)
+
+    context.audit_logger.info(
+        format_log_msg(
+            request,
+            user.user_id_crm,
+            user.client_id,
+            f"Authorised tool id: {payload.tid} for org id: {org_id}",
+            include_client_id=True,
+        )
+    )
+
+    return JSONResponse(
+        {"status": "success", "data": None, "error": None},
+        status_code=fastapi.status.HTTP_201_CREATED,
     )
 
 
@@ -667,8 +743,48 @@ def revoke_tool_permission_for_reporting_org(
         authz.get_user_authnz, scopes=["ryd", "ryd:reporting_org:tool:update"]
     ),
 ) -> JSONResponse:
+    """Handler for endpoint which removes authorisation for a tool for the specified reporting organisation"""
 
-    raise fastapi.HTTPException(
-        status_code=fastapi.status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Not yet implemented",
+    context: Context = request.app.state.context
+
+    # Check that the user can manage the tool authorisations for this org
+    if not user.validator.user_can_update_reporting_org_tool_authorisations(org_id):
+        context.audit_logger.error(
+            f"Request to revoke a tool for org id: {org_id} by unauthorised user id: {user.user_id_crm}"
+        )
+        raise HTTPException(
+            status_code=fastapi.status.HTTP_403_FORBIDDEN,
+            detail="There is a problem with your credentials.  If this persists please report "
+            "error to the provider of the tool you are using to access the IATI Registry.",
+        )
+
+    # The tool must currently be authorised for this org (this also covers a non-existent tool id).
+    assert_precondition_met(
+        user.user_id_crm,
+        user.client_id,
+        condition_func=lambda: tool_id
+        in {tool.id for tool in context.fine_grained_auth_provider.get_tools_for_organisation(org_id)},
+        status_code=fastapi.status.HTTP_404_NOT_FOUND,
+        audit_log_msg=(
+            f"Request to revoke tool id: {tool_id} for org id: {org_id} by user id: "
+            f"{user.user_id_crm} but the tool is not authorised for the org."
+        ),
+        public_msg=f"Tool with ID {str(tool_id)} is not authorised for this organisation.",
+    )
+
+    context.fine_grained_auth_provider.revoke_tool_authorisation_for_organisation(tool_id, org_id)
+
+    context.audit_logger.info(
+        format_log_msg(
+            request,
+            user.user_id_crm,
+            user.client_id,
+            f"Revoked tool id: {tool_id} for org id: {org_id}",
+            include_client_id=True,
+        )
+    )
+
+    return JSONResponse(
+        {"status": "success", "data": None, "error": None},
+        status_code=fastapi.status.HTTP_200_OK,
     )
