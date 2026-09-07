@@ -123,7 +123,7 @@ Care should be taken to make sure that the `.env` variables match the log (`APP_
 New dependencies are added to `pyproject.toml`.  Once these have been added `requirements.txt` and/or `requirements_dev.txt` need to be regenerated.  With:
 
 ```
-pip-compile --output-file=requirements.txt --strip-extras
+pip-compile --all-build-deps --strip-extras
 ```
 
 and/or
@@ -131,6 +131,15 @@ and/or
 ```
 pip-compile --extra=dev --output-file=requirements_dev.txt --strip-extras
 ```
+
+Note that the two commands take different options, so run each as given above rather than
+applying one set of flags to both files.  The command line recorded at the top of each
+generated file is the authoritative record of how that file was built.
+
+**Regenerate on Linux, not on macOS.**  `pip-compile` resolves for the platform it runs on and
+has no cross-platform mode, so a macOS run silently drops dependencies that the deployment
+target needs.  SQLAlchemy, for example, requires `greenlet` on `x86_64` and `aarch64` but not
+on Apple Silicon's `arm64`, so a run on an M-series Mac omits it and loses the pin.  
 
 ### Checking and linting
 

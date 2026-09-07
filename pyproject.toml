@@ -21,6 +21,7 @@ dependencies = [
     "python-dotenv>=1.1.1",
     "psycopg[binary]>3",
     "requests==2.32.4",
+    "sentry-sdk~=2.35",
     "sqlmodel==0.0.25",
     "SQLAlchemy==2.0.43",
     "types-requests==2.32.4.20250611"
