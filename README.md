@@ -43,7 +43,80 @@ The application is configured using a set of environment variables in a `.env` f
 | `AUDIT_LOG_PUBLIC_KEY_PATH` | Path to the public key for encrypting audit logs.            |
 | `PROMETHEUS_PORT`           | Port to serve Prometheus metrics from.                       |
 | `JWT_AUDIENCE`              | Audience that we expect to find in JWTs from the identity server. |
+| `SENTRY_DSN`                | DSN of the Sentry project to report errors to.  **Optional** — leave empty or unset and Sentry is not initialised, and the application runs normally. |
+| `SENTRY_ENVIRONMENT`        | Environment name that events are tagged with in Sentry, e.g. `"dev"` or `"prod"`.  Defaults to `"local-development"` rather than the SDK's own default of `"production"`, so that an unconfigured environment can never be mistaken for the live one. |
+| `SENTRY_TRACES_SAMPLE_RATE` | Proportion of requests traced for performance monitoring, `0.0`–`1.0`.  Defaults to `1.0`; lower it (e.g. `0.1`) if trace volume becomes a problem. |
 
+### Error monitoring with Sentry
+
+Sentry is initialised in `src/main.py` by `register_your_data_api.sentry.setup_sentry()`,
+before the FastAPI application object is created, so that its Starlette/FastAPI
+integrations are in place.  It reports unhandled exceptions and traces requests.
+
+Configuration is read directly from the environment rather than through `Context`,
+because `Context` is not created until the application lifespan runs, which is after the
+SDK has to be initialised.  Sentry is optional by design: error reporting should never be
+the reason the API fails to start, so a missing DSN disables it rather than raising, and
+so does a DSN the SDK rejects as malformed — `sentry_sdk.init` raises `BadDsn` for those,
+which would otherwise stop the process at import time before there is a logger to report
+it to.
+
+The test suite must not report to a real project.  It imports `src/main.py` through
+`tests/helpers/mocking.py`, so `setup_sentry()` runs during collection and a developer's
+`.env` would otherwise point the suite's deliberately-provoked errors — and a transaction
+per request — at whichever project that DSN names.  `tests/conftest.py` empties
+`SENTRY_DSN` for the session, which is the SDK's own way of being switched off.
+
+`include_local_variables=False` because otherwise Sentry would attach the local 
+variables of every stack frame to an event, and this application's credentials reach 
+the stack in forms which cannot all be recognised by name: an ASGI frame's locals hold 
+the raw `scope`/`request` objects, whose headers are a list of `(bytes, bytes)` tuples 
+rather than a named field, and the bearer token is a local variable in `auth/authn.py` 
+in its own right as well as a field of `UserAndCredentials`.  Local variables are 
+therefore not sent at all, which costs the variable values in a traceback but keeps
+the file, line, function and source line of every frame.  With frame locals enabled
+a live bearer token is transmitted in the event payload .
+
+`send_default_pii=False` keeps cookies and the client IP address out of events, and the
+`EventScrubber` denylist in `sentry.py` withholds this application's own secrets by name
+wherever the SDK collects them by other means.
+
+Be careful about what `send_default_pii=False` does **not** do, because the option name
+suggests more than it delivers:
+
+* It does not keep request **headers** out of events.  The SDK substitutes the sensitive
+  ones and passes the rest through, so `host`, `user-agent` and `content-type` are sent.
+  The `Authorization` header is withheld by the scrubber's `authorization` denylist entry,
+  not by this option.
+* It does not keep request **bodies** out of events — the SDK collects those regardless of
+  it, bounded by `max_request_body_size`.  Because tracing is enabled the body rides out
+  on the transaction event for **successful** requests too, so a `POST` creating a
+  reporting org would have transmitted its `contact_email` on every call.
+  `max_request_body_size="never"` is what actually withholds them.
+
+Deciding that a variable holds a credential is still a manual step:
+`tests/unit/test_sentry.py::test_sentry_scrubs_every_configuration_variable_which_looks_like_a_secret`
+is a backstop that catches the common cases by name fragment, but a credential with an
+unremarkable name would satisfy it.
+
+Sentry also records the query string of every outgoing HTTP request, with the values
+intact.  This application queries SuiteCRM by building record filters into the query
+string, so those values carry the IDs of the people and organisations a request touched;
+`before_breadcrumb` and `before_send_transaction` withhold them.  The method, the URL
+without its query string and the response status are kept, so a breadcrumb still says
+which request was being made.
+
+**The audit log is never sent to Sentry.**  Sentry turns any log record of `ERROR` or
+above into an event, and the audit log is written at `CRITICAL` for authentication
+failures — where `auth/authn.py` records the contents of the `Authorization` header,
+including the credential itself, for a request whose scheme is not `bearer`.  Sending
+those records to a third party in plain text would defeat the point of encrypting the
+audit log at rest, so `sentry.py` calls both `ignore_logger()` and
+`ignore_logger_for_sentry_logs()` for it — the SDK keeps two separate ignore lists and
+the first covers only events and breadcrumbs.  Sentry Logs are off, so the second call
+changes nothing today; it is there so that enabling them later cannot silently start
+sending the audit log.  The application's diagnostic log is still reported, which is 
+how application code reports errors without referencing the SDK.
 
 ### FineGrainedAuthorisation database migrations
 
