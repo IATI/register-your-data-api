@@ -12,13 +12,12 @@ so that the two services withhold credentials from Sentry in the same way.
 
 import importlib.metadata
 import os
-from typing import Any, Final
+from typing import Final
 
 import dotenv
 import sentry_sdk
 from sentry_sdk.integrations.logging import ignore_logger, ignore_logger_for_sentry_logs
 from sentry_sdk.scrubber import DEFAULT_DENYLIST, EventScrubber
-from sentry_sdk.types import Breadcrumb, BreadcrumbHint, Event, Hint
 
 # Sentry's SDK sends no traces at all unless a sample rate is set, so a default is
 # supplied here rather than leaving it to the SDK
@@ -35,26 +34,6 @@ AUDIT_LOGGER_NAME: Final[str] = "ryd-api-audit"
 # Used when SENTRY_ENVIRONMENT is not set, in preference to the SDK's own default of
 # 'production', so that an unconfigured environment can never be mistaken for the live one
 UNCONFIGURED_ENVIRONMENT: Final[str] = "local-development"
-
-# What Sentry itself puts in place of a value it withholds
-WITHHELD: Final[str] = "[Filtered]"
-
-# The parts of a request's URL which Sentry records with their values intact, and which
-# can therefore carry a credential or an identifier.
-#
-# Both of the SDK's naming schemes are listed.  Which one is used depends on whether span
-# streaming is enabled: the SDK's http.client instrumentation records 'http.query' and
-# 'http.fragment' without regard to send_default_pii, and 'url.query' and 'url.fragment'
-# only when send_default_pii is set (sentry_sdk/integrations/stdlib.py).  This application
-# currently takes the former path, which is the one that needs withholding; the latter is
-# listed so that a future SDK release which changes the default cannot quietly stop these
-# from matching.
-REQUEST_URL_PARTS_TO_WITHHOLD: Final[tuple[str, ...]] = (
-    "http.query",
-    "http.fragment",
-    "url.query",
-    "url.fragment",
-)
 
 # Names of this application's own secrets and sensitive fields, withheld by name in
 # addition to Sentry's own default denylist.  The audit log is deliberately encrypted at
@@ -172,58 +151,12 @@ def initialise_sdk(dsn: str, environment: str, traces_sample_rate: float) -> Non
             denylist=DEFAULT_DENYLIST + SENSITIVE_NAMES,
             recursive=True,
         ),
-        before_breadcrumb=before_breadcrumb,
-        before_send_transaction=before_send_transaction,
         # the server is stopped by interrupting it, which is a normal way for the process
         # to end rather than a fault worth reporting
         ignore_errors=[KeyboardInterrupt],
         # mark this application's own frames as in-app so they stand out in a traceback
         in_app_include=["register_your_data_api", "main"],
     )
-
-
-def before_breadcrumb(crumb: Breadcrumb, _hint: BreadcrumbHint) -> Breadcrumb | None:
-    """Withholds the query string of the outgoing HTTP requests Sentry records as breadcrumbs.
-
-    Sentry records each request's query string with its values intact.  This application
-    queries SuiteCRM by building filters into the query string, so those values carry the
-    IDs of the people and organisations a request touched."""
-
-    withhold_request_url_parts(crumb.get("data"))
-
-    return crumb
-
-
-def before_send_transaction(event: Event, _hint: Hint) -> Event | None:
-    """Withholds the same query strings from the spans of a transaction.
-
-    Tracing is enabled, so requests to SuiteCRM and the FGA database are sent as spans of
-    the transaction for the request that made them, and `before_send` is not given
-    transactions and so cannot cover this."""
-
-    spans = event.get("spans")
-
-    # Sentry replaces a value it has trimmed with a marker object, so the spans are not
-    # necessarily a list, and this must not be the thing which raises
-    if isinstance(spans, list):
-        for span in spans:
-            withhold_request_url_parts(span.get("data"))
-
-    return event
-
-
-def withhold_request_url_parts(data: Any) -> None:
-    """Replaces the parts of a recorded request URL which can carry a credential or an ID.
-
-    The method, the URL without its query string, and the response status are left alone,
-    so a breadcrumb still says which request was being made."""
-
-    if not isinstance(data, dict):
-        return
-
-    for part in REQUEST_URL_PARTS_TO_WITHHOLD:
-        if part in data:
-            data[part] = WITHHELD
 
 
 def get_traces_sample_rate(config: dict[str, str]) -> float:

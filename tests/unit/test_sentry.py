@@ -18,9 +18,6 @@ from register_your_data_api.sentry import (
     AUDIT_LOGGER_NAME,
     DEFAULT_TRACES_SAMPLE_RATE,
     UNCONFIGURED_ENVIRONMENT,
-    WITHHELD,
-    before_breadcrumb,
-    before_send_transaction,
     setup_sentry,
 )
 from register_your_data_api.util import Context
@@ -144,84 +141,6 @@ def test_sentry_scrubs_every_configuration_variable_which_looks_like_a_secret() 
 
     for name in secret_vars:
         assert name.lower() in scrubber.denylist, f"{name} looks like a secret, but Sentry would not scrub it"
-
-
-def test_sentry_is_given_the_request_url_hooks() -> None:
-
-    init_args = initialise_with({})
-
-    assert init_args["before_breadcrumb"] is before_breadcrumb
-
-    assert init_args["before_send_transaction"] is before_send_transaction
-
-
-def test_query_strings_are_withheld_from_request_breadcrumbs() -> None:
-    """Sentry records query strings with their values, and this application queries
-    SuiteCRM by building record IDs into the query string."""
-
-    crumb = before_breadcrumb(
-        {
-            "type": "http",
-            "data": {
-                "method": "GET",
-                "url": "https://dev.suitecrm.example.org/Api/V8/module/Contacts",
-                "http.query": "filter[id][eq]=698e0c1f-4e80-faa9-6533-68de801d1735",
-                "http.fragment": "somewhere",
-                "status_code": 403,
-            },
-        },
-        {},
-    )
-
-    assert crumb is not None
-
-    assert crumb["data"]["http.query"] == WITHHELD
-    assert crumb["data"]["http.fragment"] == WITHHELD
-
-    # what is left has to be enough to say which request failed
-    assert crumb["data"]["method"] == "GET"
-    assert crumb["data"]["url"] == "https://dev.suitecrm.example.org/Api/V8/module/Contacts"
-    assert crumb["data"]["status_code"] == 403
-
-
-def test_breadcrumbs_without_request_data_are_left_alone() -> None:
-
-    assert before_breadcrumb({"type": "log", "message": "a message"}, {}) == {
-        "type": "log",
-        "message": "a message",
-    }
-
-    assert before_breadcrumb({"type": "http", "data": None}, {}) == {"type": "http", "data": None}
-
-
-def test_query_strings_are_withheld_from_transaction_spans() -> None:
-
-    # typed loosely because the SDK's Event marks every key as optional, so reading one
-    # back is a type error even where the test has just supplied it
-    transaction: Any = {
-        "type": "transaction",
-        "spans": [
-            {"op": "http.client", "data": {"url": "https://example.com/x", "http.query": "filter[id][eq]=abc"}},
-            {"op": "db", "data": {"db.system": "postgresql"}},
-        ],
-    }
-
-    event: Any = before_send_transaction(transaction, {})
-
-    assert event is not None
-
-    assert event["spans"][0]["data"]["http.query"] == WITHHELD
-    assert event["spans"][0]["data"]["url"] == "https://example.com/x"
-    assert event["spans"][1]["data"] == {"db.system": "postgresql"}
-
-
-def test_transactions_whose_spans_sentry_has_trimmed_are_left_alone() -> None:
-    """Sentry replaces a value it has trimmed with a marker object, so the spans are not
-    necessarily a list.  The hook must not be the thing which raises."""
-
-    trimmed: Any = {"type": "transaction", "spans": object()}
-
-    assert before_send_transaction(trimmed, {}) is not None
 
 
 def test_the_audit_log_is_ignored_for_sentry_logs_as_well_as_for_events() -> None:

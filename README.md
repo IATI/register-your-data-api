@@ -86,8 +86,11 @@ suggests more than it delivers:
 
 * It does not keep request **headers** out of events.  The SDK substitutes the sensitive
   ones and passes the rest through, so `host`, `user-agent` and `content-type` are sent.
-  The `Authorization` header is withheld by the scrubber's `authorization` denylist entry,
-  not by this option.
+  The `Authorization` header *is* withheld by this option, though — `_filter_headers` in
+  the SDK returns every header untouched when PII is on, and substitutes its
+  `SENSITIVE_HEADERS` only when it is off.  The `EventScrubber` is not what protects the
+  bearer token, so trimming its denylist would not expose the token — but turning
+  `send_default_pii` on would.
 * It does not keep request **bodies** out of events — the SDK collects those regardless of
   it, bounded by `max_request_body_size`.  Because tracing is enabled the body rides out
   on the transaction event for **successful** requests too, so a `POST` creating a
@@ -98,13 +101,6 @@ Deciding that a variable holds a credential is still a manual step:
 `tests/unit/test_sentry.py::test_sentry_scrubs_every_configuration_variable_which_looks_like_a_secret`
 is a backstop that catches the common cases by name fragment, but a credential with an
 unremarkable name would satisfy it.
-
-Sentry also records the query string of every outgoing HTTP request, with the values
-intact.  This application queries SuiteCRM by building record filters into the query
-string, so those values carry the IDs of the people and organisations a request touched;
-`before_breadcrumb` and `before_send_transaction` withhold them.  The method, the URL
-without its query string and the response status are kept, so a breadcrumb still says
-which request was being made.
 
 **The audit log is never sent to Sentry.**  Sentry turns any log record of `ERROR` or
 above into an event, and the audit log is written at `CRITICAL` for authentication
