@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Sentry error monitoring and request tracing, initialised in `src/main.py` before the
+  FastAPI application is created.  Configured by the optional `SENTRY_DSN`,
+  `SENTRY_ENVIRONMENT`, and `SENTRY_TRACES_SAMPLE_RATE` environment variables; when no
+  DSN is set the SDK is not initialised and the application runs unchanged, and neither is
+  it when the DSN is malformed or when running under pytest.  Stack frame local variables
+  and request bodies are deliberately not sent, as they would otherwise transmit bearer
+  tokens and contact details.  The audit log is excluded
+  entirely, since its records are written at `CRITICAL` and carry the contents of the
+  `Authorization` header, and a failed startup is now logged rather than printed so that
+  it is reported as well.
+
 ### Changed
 
 ### Deprecated

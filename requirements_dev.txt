@@ -199,8 +199,10 @@ rich-toolkit==0.14.9
     #   fastapi-cloud-cli
 rignore==0.6.4
     # via fastapi-cloud-cli
-sentry-sdk==2.34.1
-    # via fastapi-cloud-cli
+sentry-sdk==2.68.1
+    # via
+    #   fastapi-cloud-cli
+    #   register-your-data-api (pyproject.toml)
 shellingham==1.5.4
     # via typer
 smmap==5.0.2
