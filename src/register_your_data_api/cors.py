@@ -7,13 +7,13 @@ environment directly rather than going through Context.
 """
 
 import json
-import os
 import re
 from typing import Final
 
-import dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from .config import get_environment_config
 
 CORS_ALLOWED_ORIGINS_FILE: Final[str] = "CORS_ALLOWED_ORIGINS_FILE"
 
@@ -28,26 +28,6 @@ ALLOWED_HEADERS: Final[list[str]] = ["Authorization", "Content-Type"]
 # rejected by this pattern too: a single "*" entry would switch CORSMiddleware into
 # allow-all mode, which is precisely what we are avoiding.
 _ORIGIN_PATTERN: Final[re.Pattern[str]] = re.compile(r"https?://[a-z0-9.-]+(:[0-9]+)?")
-
-
-def get_environment_config(env_file: str = ".env") -> dict[str, str]:
-    """Read configuration with the same precedence as Context: the env file, then os.environ.
-
-    Parameters
-    ----------
-    env_file : str
-        Path to the environment file.  A missing file is not an error, in which case only
-        os.environ is used.
-
-    Returns
-    -------
-    dict[str, str]
-    """
-
-    env: dict[str, str] = {key: value for key, value in dotenv.dotenv_values(env_file).items() if value is not None}
-    env.update(os.environ)
-
-    return env
 
 
 def load_allowed_origins(env: dict[str, str] | None = None) -> list[str]:

@@ -4,11 +4,7 @@ from typing import Any
 
 import pytest
 
-from register_your_data_api.cors import (
-    CORS_ALLOWED_ORIGINS_FILE,
-    get_environment_config,
-    load_allowed_origins,
-)
+from register_your_data_api.cors import CORS_ALLOWED_ORIGINS_FILE, load_allowed_origins
 
 
 def write_origins_file(tmp_path: Path, contents: Any) -> str:
@@ -176,31 +172,3 @@ def test_wildcard_origins_are_rejected(tmp_path: Path, contents: Any) -> None:
 
     with pytest.raises(RuntimeError, match="Wildcards are not allowed"):
         load_allowed_origins({CORS_ALLOWED_ORIGINS_FILE: filename})
-
-
-def test_environment_config_reads_the_env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv(CORS_ALLOWED_ORIGINS_FILE, raising=False)
-
-    env_file = tmp_path / ".env"
-    env_file.write_text('CORS_ALLOWED_ORIGINS_FILE="cors-allowed-origins.json"\n')
-
-    env = get_environment_config(str(env_file))
-
-    assert env[CORS_ALLOWED_ORIGINS_FILE] == "cors-allowed-origins.json"
-
-
-def test_environment_config_prefers_os_environ(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    env_file = tmp_path / ".env"
-    env_file.write_text('CORS_ALLOWED_ORIGINS_FILE="from-env-file.json"\n')
-
-    monkeypatch.setenv(CORS_ALLOWED_ORIGINS_FILE, "from-os-environ.json")
-
-    env = get_environment_config(str(env_file))
-
-    assert env[CORS_ALLOWED_ORIGINS_FILE] == "from-os-environ.json"
-
-
-def test_environment_config_tolerates_a_missing_env_file(tmp_path: Path) -> None:
-    env = get_environment_config(str(tmp_path / "does-not-exist"))
-
-    assert isinstance(env, dict)
