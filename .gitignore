@@ -21,3 +21,5 @@ __pycache__/
 
 # all key files 
 *.pem
+
+/cors-allowed-origins.json
