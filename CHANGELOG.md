@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entirely, since its records are written at `CRITICAL` and carry the contents of the
   `Authorization` header, and a failed startup is now logged rather than printed so that
   it is reported as well.
+- CORS support, so that browser based applications such as the IATI Dashboard can call the
+  API.  The origins that are allowed to do so are listed in a JSON file named by the new,
+  optional, `CORS_ALLOWED_ORIGINS_FILE` environment variable.  If it is not set, no
+  cross-origin requests are allowed.
 
 ### Changed
 
