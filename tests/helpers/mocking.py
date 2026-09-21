@@ -207,6 +207,7 @@ class MockedAppAndContext:
         self._mocked_reporting_org_ids.append(UUID("ab851a83-a384-3eb9-caf0-68db8125b067"))  # agency-02
         self._mocked_reporting_org_ids.append(UUID("da17734d-3926-47ef-8563-8a1b0247ed11"))  # gov agency 03
         self._mocked_reporting_org_ids.append(UUID("0a3a9507-d674-480e-b625-7d190f4f3319"))  # Agency Not in Mock CRM
+        self._mocked_reporting_org_ids.append(UUID("9eaed00b-a0f7-4c92-bf12-1bda9df2bc85"))  # sole contrib agency 04
 
         self._mocked_tool_ids.append(UUID("3a9d5496-77f4-497d-bb77-2bda91285111"))  # Tool One
         self._mocked_tool_ids.append(UUID("6a2d1ca1-b9c2-4bd3-a2a5-099178d1358d"))  # Tool Two
@@ -369,8 +370,10 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
         # Agency 02     / index 1 = UUID("ab851a83-a384-3eb9-caf0-68db8125b067")
         # Gov Agency 03 / index 2 = UUID("da17734d-3926-47ef-8563-8a1b0247ed11")
         # Agency Not in Mock CRM / index 3 = UUID("0a3a9507-d674-480e-b625-7d190f4f3319")
+        # Sole Contributor Agency 04 / index 4 = UUID("9eaed00b-a0f7-4c92-bf12-1bda9df2bc85")
 
-        # Tool One / index 0 = UUID("3a9d5496-77f4-497d-bb77-2bda91285111") [access to Aid Agency 01 and Agency 02]
+        # Tool One / index 0 = UUID("3a9d5496-77f4-497d-bb77-2bda91285111")
+        # [access to Aid Agency 01, Agency 02 and Sole Contributor Agency 04]
         # Tool Two / index 1 = UUID("6a2d1ca1-b9c2-4bd3-a2a5-099178d1358d") [no access to orgs]
 
         # Add user 1 roles.
@@ -438,6 +441,18 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
             )
         )
 
+        # Person Four is the only direct user of Sole Contributor Agency 04, and is not an
+        # ADMIN, so removing them is blocked by the last-user check rather than the last-admin
+        # check.  Tool One is authorised for the org below, which adds PROVIDER_ADMIN
+        # associations that must not count towards that check.
+        session.add(
+            FineGrainedAuthorisationDbModel(
+                user=app_and_context._mocked_user_ids[3],
+                reporting_org=app_and_context._mocked_reporting_org_ids[4],
+                role=FineGrainedAuthorisationRole.CONTRIBUTOR,
+            )
+        )
+
         # Add tools.
         session.add(
             ToolDbModel(
@@ -455,6 +470,11 @@ def make_test_context(app_and_context: MockedAppAndContext) -> util.Context:
         session.add(
             ToolAuthorisationDbModel(
                 tool=app_and_context._mocked_tool_ids[0], reporting_org=app_and_context._mocked_reporting_org_ids[1]
+            )
+        )
+        session.add(
+            ToolAuthorisationDbModel(
+                tool=app_and_context._mocked_tool_ids[0], reporting_org=app_and_context._mocked_reporting_org_ids[4]
             )
         )
         session.add(
