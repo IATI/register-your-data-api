@@ -49,7 +49,7 @@ class FineGrainedAuthorisationProviderDb(FineGrainedAuthorisationProvider):
         self._connection_str = connection_str
 
     def setup(self) -> None:
-        self._engine = create_engine(self._connection_str, echo=True)
+        self._engine = create_engine(self._connection_str, echo=True, pool_pre_ping=True)
 
     def get_user_fine_grained_permissions(self, user: UUID) -> list[FineGrainedAuthorisationRoleAssociation]:
         with Session(self._engine) as session:
