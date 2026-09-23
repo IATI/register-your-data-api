@@ -10,6 +10,7 @@ COPY requirements.txt .
 COPY pyproject.toml .
 COPY licences.json .
 COPY ryd-client-applications-metadata.json .
+COPY cors-allowed-origins.json .
 
 RUN pip install -r requirements.txt
 RUN pip install -e .
