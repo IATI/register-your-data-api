@@ -1,5 +1,6 @@
 import fastapi
 import fastapi.responses
+import sqlalchemy.exc
 import starlette.exceptions
 from fastapi.exceptions import RequestValidationError
 from starlette.requests import Request
@@ -94,6 +95,22 @@ async def validation_exception_handler(
     )
 
 
+async def db_error_handler(request: Request, exc: sqlalchemy.exc.DBAPIError) -> fastapi.responses.JSONResponse:
+    """Exception handler for database connection errors (e.g. the connection being dropped
+    or the database being unreachable), so these are clearly distinguishable in logs from other
+    unhandled application errors.
+    """
+
+    context = request.app.state.context  # type: Context
+
+    context.app_logger.error(f"A database error occurred: {exc}", exc_info=True)
+
+    return fastapi.responses.JSONResponse(
+        {"status": "failed", "data": None, "error": {"status_code": 503, "error_msg": "Service Unavailable"}},
+        status_code=503,
+    )
+
+
 async def unhandled_exception_handler(request: Request, exc: Exception) -> fastapi.responses.JSONResponse:
     """Catches all unhandled exceptions and returns a generic 500 server error with a simple error message"""
 
@@ -118,4 +135,5 @@ def add_exception_handlers(app: fastapi.FastAPI) -> None:
     app.add_exception_handler(RYDUserException, ryd_user_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(starlette.exceptions.HTTPException, http_exception_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(sqlalchemy.exc.DBAPIError, db_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, unhandled_exception_handler)
