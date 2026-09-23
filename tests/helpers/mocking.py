@@ -25,6 +25,7 @@ from register_your_data_api.auth.fga.fga_provider_db import (
 )
 from register_your_data_api.auth.fga.models import FineGrainedAuthorisationRole
 from register_your_data_api.client_application_details_provider import ClientApplicationDetails
+from register_your_data_api.cors import add_cors_middleware
 from tests.helpers.keys import KeyDict
 
 from ..helpers import prom
@@ -233,7 +234,21 @@ class MockedAppAndContext:
             public_key,
         )
 
-    def get_test_app(self) -> FastAPI:
+    def get_test_app(self, cors_allowed_origins: list[str] | None = None) -> FastAPI:
+        """Build (or return the already built) test app.
+
+        Parameters
+        ----------
+        cors_allowed_origins : list[str] | None
+            Origins to configure CORS middleware with.  By default no CORS middleware is
+            added at all, matching an API deployed without CORS_ALLOWED_ORIGINS_FILE set.
+            The app is built once and then cached, so the first call wins - a later call
+            passing different origins has no effect.
+
+        Returns
+        -------
+        FastAPI
+        """
 
         @contextlib.asynccontextmanager
         async def test_lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -247,6 +262,8 @@ class MockedAppAndContext:
 
         if not self._app_is_created:
             self._app = FastAPI(title="Register Your Data", lifespan=test_lifespan)
+            if cors_allowed_origins is not None:
+                add_cors_middleware(self._app, cors_allowed_origins)
             add_routers_and_general_exception_handling(self._app)
             self._app_is_created = True
 

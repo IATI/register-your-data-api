@@ -8,14 +8,27 @@ from typing import AsyncIterator
 import prometheus_client
 from fastapi import FastAPI
 
+import register_your_data_api.cors as cors
 import register_your_data_api.exception_handlers
 import register_your_data_api.util as util
 from register_your_data_api.routers import datasets, discoverable_reporting_orgs, misc, reporting_orgs, users
 from register_your_data_api.sentry import setup_sentry
 
+# Assigned at the bottom of this module and acted on in prod_lifespan; the comment on the
+# assignment explains why those are two different places.
+_cors_configuration_error: RuntimeError | None = None
+
 
 @contextlib.asynccontextmanager
 async def prod_lifespan(app: FastAPI) -> AsyncIterator[None]:
+    if _cors_configuration_error is not None:
+        # Logged rather than printed, and with the exception attached, for the same reasons
+        # as the context failure below.
+        logging.getLogger(__name__).error(
+            "Could not initialise application - error configuring CORS", exc_info=_cors_configuration_error
+        )
+        sys.exit("Could not startup")
+
     try:
         context = util.Context()
         context.setup()
@@ -52,5 +65,15 @@ def add_routers_and_general_exception_handling(app: FastAPI) -> None:
 setup_sentry()
 
 app = FastAPI(title="Register Your Data", lifespan=prod_lifespan, redirect_slashes=False)
+
+# Middleware has to be registered before the application starts, so this runs at import.
+# Exiting here would take down every importer of this module - which includes the whole
+# test suite, via tests/helpers/mocking.py - and SystemExit during collection aborts pytest
+# without reporting a cause.  The failure is therefore carried into prod_lifespan, where
+# the equivalent context failure is already reported.
+try:
+    cors.add_cors_middleware(app, cors.load_allowed_origins())
+except RuntimeError as err:
+    _cors_configuration_error = err
 
 add_routers_and_general_exception_handling(app)

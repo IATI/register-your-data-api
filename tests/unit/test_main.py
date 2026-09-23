@@ -30,3 +30,25 @@ def test_a_failed_startup_is_logged_with_the_exception_attached() -> None:
     # only that startup failed and not why.  Logger.exception delegates to Logger.error
     # with exc_info=True, which is why the assertion is on `error`.
     logged.assert_called_once_with("Could not initialise application - error setting up context", exc_info=True)
+
+
+def test_a_failed_cors_configuration_is_logged_with_the_exception_attached() -> None:
+    """The CORS allowlist is read at import, so the failure is carried into the lifespan.
+
+    It is reported the same way as a failed context setup: an application which will not
+    start because its CORS configuration is broken is exactly as worth being told about,
+    and without `exc_info` the reported event would not say which origin was at fault.
+    """
+
+    cors_error = RuntimeError("CORS allowed origins file origins.json contains invalid origins")
+
+    async def enter_lifespan() -> None:
+        async with main.prod_lifespan(mock.MagicMock()):
+            pass
+
+    with mock.patch.object(main, "_cors_configuration_error", cors_error):
+        with mock.patch.object(logging.getLogger("main"), "error") as logged:
+            with pytest.raises(SystemExit):
+                asyncio.run(enter_lifespan())
+
+    logged.assert_called_once_with("Could not initialise application - error configuring CORS", exc_info=cors_error)

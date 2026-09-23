@@ -46,6 +46,7 @@ The application is configured using a set of environment variables in a `.env` f
 | `SENTRY_DSN`                | DSN of the Sentry project to report errors to.  **Optional** — leave empty or unset and Sentry is not initialised, and the application runs normally. |
 | `SENTRY_ENVIRONMENT`        | Environment name that events are tagged with in Sentry, e.g. `"dev"` or `"prod"`.  Defaults to `"local-development"` rather than the SDK's own default of `"production"`, so that an unconfigured environment can never be mistaken for the live one. |
 | `SENTRY_TRACES_SAMPLE_RATE` | Proportion of requests traced for performance monitoring, `0.0`–`1.0`.  Defaults to `1.0`; lower it (e.g. `0.1`) if trace volume becomes a problem. |
+| `CORS_ALLOWED_ORIGINS_FILE` | Path to a JSON file listing the origins that browser based applications, such as the IATI Dashboard, may call this API from. Omit it to allow no cross-origin requests at all. See `cors-allowed-origins.example.json` and the notes in `.env.example` for the required format. |
 
 ### Error monitoring with Sentry
 
@@ -169,6 +170,7 @@ Running the API in production can be run directly from its Docker container with
 ```
 docker run \
   --mount type=bind,source=.env,target=/api/.env,readonly \
+  --mount type=bind,source=cors-allowed-origins.json,target=/api/cors-allowed-origins.json,readonly \
   --mount type=bind,source=./logs/,target=/api/logs/ \
   --mount type=bind,source=./keys/,target=/api/keys/,readonly \
   -p 8000:8000 \
@@ -178,12 +180,13 @@ docker run \
 
 This performs the following setup:
 * `--mount type=bind,source=.env,target=/api/.env,readonly`: shares `.env` configuration file on the host with the container.
+* `--mount type=bind,source=cors-allowed-origins.json,target=/api/cors-allowed-origins.json,readonly`: shares the CORS allowed origins file on the host with the container. Mounting it, rather than baking it into the image, means origins can be added by editing the file and restarting the container. Omit this mount if the deployment does not serve any browser based clients.
 * `--mount type=bind,source=./logs/,target=/api/logs/`: allows the container to write logs to the /logs directory on the host.
 * `--mount type=bind,source=./keys/,target=/api/keys/,readonly`: shares the `/keys` directory on the host with the container so public and private keys can be used by the container.
 * `-p 8000:8000`: shares port 8000 for API traffic.
 * `-p 9000:9000`: shares port 9000 for Prometheus metrics (assuming that this is the port as specified by the `.env` file.)
 
-Care should be taken to make sure that the `.env` variables match the log (`APP_LOG_PATH` and `AUDIT_LOG_PATH`) and key directories (`AUDIT_LOG_PUBLIC_KEY_PATH`) and the Prometheus metric port (`PROMETHEUS_PORT`).
+Care should be taken to make sure that the `.env` variables match the log (`APP_LOG_PATH` and `AUDIT_LOG_PATH`) and key directories (`AUDIT_LOG_PUBLIC_KEY_PATH`) and the Prometheus metric port (`PROMETHEUS_PORT`). If CORS is in use, `CORS_ALLOWED_ORIGINS_FILE` must also match the target path of the mount above.
 
 ## Development
 

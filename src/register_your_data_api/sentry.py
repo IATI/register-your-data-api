@@ -11,13 +11,13 @@ so that the two services withhold credentials from Sentry in the same way.
 """
 
 import importlib.metadata
-import os
 from typing import Final
 
-import dotenv
 import sentry_sdk
 from sentry_sdk.integrations.logging import ignore_logger, ignore_logger_for_sentry_logs
 from sentry_sdk.scrubber import DEFAULT_DENYLIST, EventScrubber
+
+from .config import get_environment_config
 
 # Sentry's SDK sends no traces at all unless a sample rate is set, so a default is
 # supplied here rather than leaving it to the SDK
@@ -50,14 +50,6 @@ SENSITIVE_NAMES: Final[list[str]] = [
     "suitecrm_audit_headers",
     "USER_CRM_UUID_CONFIG_STRING",
 ]
-
-
-def get_environment_config() -> dict[str, str]:
-    """Reads configuration with the same precedence as ``Context``: ``.env`` then os.environ."""
-
-    env: dict[str, str] = {k: v for k, v in dotenv.dotenv_values(".env").items() if v is not None}
-    env.update(os.environ)
-    return env
 
 
 def get_release() -> str | None:
