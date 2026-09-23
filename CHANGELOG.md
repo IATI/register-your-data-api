@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Fixed
+
+### Removed
+
+### Security
+
+## [0.3.9] - 2026-09-22
+
+### Added
+
 - Sentry error monitoring and request tracing, initialised in `src/main.py` before the
   FastAPI application is created.  Configured by the optional `SENTRY_DSN`,
   `SENTRY_ENVIRONMENT`, and `SENTRY_TRACES_SAMPLE_RATE` environment variables; when no
@@ -23,16 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   API.  The origins that are allowed to do so are listed in a JSON file named by the new,
   optional, `CORS_ALLOWED_ORIGINS_FILE` environment variable.  If it is not set, no
   cross-origin requests are allowed.
-
-### Changed
-
-### Deprecated
-
-### Fixed
-
-### Removed
-
-### Security
 
 ## [0.3.8] - 2026-07-01
 
