@@ -262,6 +262,22 @@ def test_provider_roles_are_correctly_applied() -> None:
         ]
         assert association_lists_equal_ignore_id(fga.get_user_associations_for_org(o), expected_associations)
 
+    # Check direct associations by org - the same orgs, with the tool-derived provider admins
+    # excluded.  o1 has one direct user alongside four provider admin associations, and o2 has
+    # none at all despite being reachable by two of them.
+    DIRECT_ASSOCIATIONS_BY_ORG_CHECKS: dict[UUID, list[tuple[UUID, FineGrainedAuthorisationRole, UUID | None]]] = {
+        o1: [
+            (u_o1, FineGrainedAuthorisationRole.ADMIN, None),
+        ],
+        o2: [],
+    }
+    for o, direct_data in DIRECT_ASSOCIATIONS_BY_ORG_CHECKS.items():
+        expected_associations = [
+            FineGrainedAuthorisationRoleAssociation(user=u, reporting_org=o, role=r, restricted_to_tool=t, id=uuid4())
+            for u, r, t in direct_data
+        ]
+        assert association_lists_equal_ignore_id(fga.get_direct_user_associations_for_org(o), expected_associations)
+
     # Check associations by user and org
     ASSOCIATIONS_BY_USER_AND_ORG_CHECKS = {
         (u_o1, o1): [(FineGrainedAuthorisationRole.ADMIN, None)],

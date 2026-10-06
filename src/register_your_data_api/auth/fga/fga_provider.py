@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from .models import FineGrainedAuthorisationRoleAssociation, FineGrainedAuthorisationTool
+from .models import (
+    FineGrainedAuthorisationRole,
+    FineGrainedAuthorisationRoleAssociation,
+    FineGrainedAuthorisationTool,
+)
 
 
 class FineGrainedAuthorisationIntegrityError(Exception):
@@ -23,6 +27,21 @@ class FineGrainedAuthorisationProvider(ABC):
     def get_user_associations_for_org(self, reporting_org: UUID) -> list[FineGrainedAuthorisationRoleAssociation]:
         """Returns a list of all the user-role-org associations for the specified reporting org"""
         raise NotImplementedError
+
+    def get_direct_user_associations_for_org(
+        self, reporting_org: UUID
+    ) -> list[FineGrainedAuthorisationRoleAssociation]:
+        """Returns the associations held directly by users of the org, excluding tool provider admins
+
+        A tool's provider admins are derived from the tool's authorisation for the org rather
+        than from any membership of it, and one such user contributes an association per
+        authorised tool.  Callers asking about the organisation's own users want this method.
+        """
+        return [
+            association
+            for association in self.get_user_associations_for_org(reporting_org)
+            if association.role != FineGrainedAuthorisationRole.PROVIDER_ADMIN
+        ]
 
     @abstractmethod
     def get_user_roles_for_org(self, user: UUID, org: UUID) -> list[FineGrainedAuthorisationRoleAssociation]:

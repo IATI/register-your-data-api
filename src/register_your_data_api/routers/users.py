@@ -544,8 +544,8 @@ def remove_user_from_reporting_org(
         ),
     )
 
-    # 5a. Check that the user isn't the last user in the organisation
-    users_in_org = context.fine_grained_auth_provider.get_user_associations_for_org(org_id)
+    # 5a. Check that the user isn't the last user in the organisation.
+    users_in_org = context.fine_grained_auth_provider.get_direct_user_associations_for_org(org_id)
 
     assert_precondition_met(
         user.user_id_crm,

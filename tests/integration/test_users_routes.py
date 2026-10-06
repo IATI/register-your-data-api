@@ -274,21 +274,31 @@ def test_delete_user_role_permissions_check(logged_in_user_idx: int, expected_st
 @pytest.mark.parametrize(
     "logged_in_user_idx,expected_status_code",
     [
-        (1, 400),  # Person 2 (User index 1) is an ADMIN - can delete roles, but should get 400 for last user
+        (2, 400),  # Person 3 (User index 2) is a superadmin - can delete roles, but should get 400 for last user
     ],
 )
 def test_delete_user_role_cannot_delete_last_user(logged_in_user_idx: int, expected_status_code: int) -> None:
+    """Person Four is the only direct user of Sole Contributor Agency 04.
+
+    The organisation also has PROVIDER_ADMIN associations via Tool One, which must not count
+    towards the last-user check.  The caller has to be a superadmin because the organisation
+    has no ADMIN of its own.
+    """
     appAndContext = MockedAppAndContext()
 
     fastAPIapp = appAndContext.get_test_app()
 
     with TestClient(fastAPIapp) as client:
         response = client.delete(
-            "/api/v1/users/bea511d3-c7a7-4097-55ed-68de81e94921/reporting-org/da17734d-3926-47ef-8563-8a1b0247ed11",
+            "/api/v1/users/7625122c-f752-40dc-a577-5cb49e13de2a/reporting-org/9eaed00b-a0f7-4c92-bf12-1bda9df2bc85",
             headers=appAndContext.get_valid_authorization_header(logged_in_user_idx),
         )
 
         assert response.status_code == expected_status_code
+
+        # 5a and 5b are only distinguishable by their message, so assert on it to stop this
+        # test silently passing via the last-admin check instead.
+        assert "is the last user associated with" in response.json()["error"]["error_msg"]
 
 
 @pytest.mark.parametrize(
@@ -309,6 +319,10 @@ def test_delete_user_role_cannot_delete_last_admin_user(logged_in_user_idx: int,
         )
 
         assert response.status_code == expected_status_code
+
+        # As above, the last-user and last-admin checks both return 400, so assert on the
+        # message to stop this test silently passing via the last-user check instead.
+        assert "is the last admin user associated with" in response.json()["error"]["error_msg"]
 
 
 @pytest.mark.parametrize(
@@ -473,6 +487,7 @@ def test_user_role_access_permissions(logged_in_user_idx: int, user_id: str, exp
                 "552376ae-2aa7-98ab-d800-68daa9bfeb4a": "contributor",
                 "ab851a83-a384-3eb9-caf0-68db8125b067": "contributor_pending",
                 "0a3a9507-d674-480e-b625-7d190f4f3319": "contributor_pending",
+                "9eaed00b-a0f7-4c92-bf12-1bda9df2bc85": "contributor",
             },
         ),
         (
@@ -483,6 +498,7 @@ def test_user_role_access_permissions(logged_in_user_idx: int, user_id: str, exp
             {
                 "552376ae-2aa7-98ab-d800-68daa9bfeb4a": "provider_admin",
                 "ab851a83-a384-3eb9-caf0-68db8125b067": "provider_admin",
+                "9eaed00b-a0f7-4c92-bf12-1bda9df2bc85": "provider_admin",
             },
         ),
     ],

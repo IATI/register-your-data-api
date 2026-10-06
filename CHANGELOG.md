@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.10] - 2026-10-06
+
+### Fixed
+
+- `DELETE /users/{user_id}/reporting-org/{org_id}` no longer counts a tool's provider admins
+  as members of an organisation when checking whether the user being removed is its last
+  one. `get_user_associations_for_org` returns tool-derived `PROVIDER_ADMIN` associations
+  alongside direct reporting-org roles, and one such user contributes an association per
+  authorised tool, so the last remaining member of an organisation authorised for a tool
+  could be removed, leaving the organisation with no members.
+
 ## [0.3.9] - 2026-09-22
 
 ### Added
