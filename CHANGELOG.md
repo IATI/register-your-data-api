@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.11] - 2026-10-07
+
+### Fixed
+
+- Database connection errors (e.g. `psycopg.errors.AdminShutdown`) are now handled gracefully
+  instead of crashing the request with an unhandled exception. `pool_pre_ping` detects and
+  discards stale pooled connections before a request can fail on one, and any connection error
+  that still reaches a request is logged clearly and reported as `503 Service Unavailable`.
+  Other database errors (e.g. `IntegrityError`) are reported as `500`, since retrying them
+  will not help.
+
 ## [0.3.10] - 2026-10-06
 
 ### Fixed
