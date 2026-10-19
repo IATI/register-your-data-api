@@ -1,5 +1,6 @@
 import fastapi
 import fastapi.responses
+import sqlalchemy.exc
 import starlette.exceptions
 from fastapi.exceptions import RequestValidationError
 from starlette.requests import Request
@@ -94,6 +95,41 @@ async def validation_exception_handler(
     )
 
 
+async def db_operational_error_handler(
+    request: Request, exc: sqlalchemy.exc.OperationalError
+) -> fastapi.responses.JSONResponse:
+    """Exception handler for database connectivity errors (e.g. the connection being dropped
+    or the database being unreachable). These are runtime conditions outside the application's
+    control that a retry is likely to resolve, so they are reported as a 503 rather than a 500.
+    """
+
+    context = request.app.state.context  # type: Context
+
+    context.app_logger.error(f"A database connectivity error occurred: {exc}", exc_info=True)
+
+    return fastapi.responses.JSONResponse(
+        {"status": "failed", "data": None, "error": {"status_code": 503, "error_msg": "Service Unavailable"}},
+        status_code=503,
+    )
+
+
+async def db_error_handler(request: Request, exc: sqlalchemy.exc.DBAPIError) -> fastapi.responses.JSONResponse:
+    """Exception handler for database errors that are not connectivity issues (e.g. IntegrityError,
+    DataError). Unlike OperationalError, retrying these will not help, so they are reported as a 500,
+    while still being logged clearly as database errors rather than falling through to the generic
+    unhandled exception handler.
+    """
+
+    context = request.app.state.context  # type: Context
+
+    context.app_logger.error(f"A database error occurred: {exc}", exc_info=True)
+
+    return fastapi.responses.JSONResponse(
+        {"status": "failed", "data": None, "error": {"status_code": 500, "error_msg": "Internal Server Error"}},
+        status_code=500,
+    )
+
+
 async def unhandled_exception_handler(request: Request, exc: Exception) -> fastapi.responses.JSONResponse:
     """Catches all unhandled exceptions and returns a generic 500 server error with a simple error message"""
 
@@ -118,4 +154,6 @@ def add_exception_handlers(app: fastapi.FastAPI) -> None:
     app.add_exception_handler(RYDUserException, ryd_user_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(starlette.exceptions.HTTPException, http_exception_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(sqlalchemy.exc.OperationalError, db_operational_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(sqlalchemy.exc.DBAPIError, db_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, unhandled_exception_handler)
