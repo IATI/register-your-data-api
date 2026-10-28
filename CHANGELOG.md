@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The Docker image could report a stale version. A `src/*.egg-info` left in the build
+  checkout by a local `pip install -e .` was copied into the image and shadowed the installed
+  metadata, because `fastapi run` puts `src/` first on `sys.path`. A `.dockerignore` now keeps
+  local build artefacts out of the image, along with `.env`, `keys/` and other local state.
+
 ### Removed
 
 ### Security

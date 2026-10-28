@@ -1,0 +1,13 @@
+# Build artefacts from local installs.  A stale src/*.egg-info shadows the image's own metadata
+# at runtime (fastapi puts src/ first on sys.path), so the app reports the wrong version.
+**/*.egg-info
+**/__pycache__
+
+.venv
+.git
+
+# Secrets and local state; never needed in the image.
+.env
+keys/
+logs/
+test.db
