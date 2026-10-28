@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Stop trusting the compromised eMudhra/emSign intermediate CA certificates
+  (https://emudhra.we-have-a-problem.com/). Without this, connections to the JWKS endpoint,
+  Asgardeo, Azure Communication Email and Sentry could be intercepted, and a forged JWKS
+  response would allow forged access tokens. `certifi` is now `>=2026.10.19`, Python is
+  3.12.16, and the Docker image and CI upgrade pip to 26.2.2 from a hash-pinned wheel
+  before installing anything. `pip-tools` is now `>=7.6.2`, because 7.4.1 does not
+  work with pip 26.2.
+
 ## [0.3.11] - 2026-10-07
 
 ### Fixed
