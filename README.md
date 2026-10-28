@@ -13,7 +13,7 @@ Support | [IATI Support Website](https://iatistandard.org/en/guidance/get-suppor
 
 ## High-level requirements
 
-* Python 3.12.11
+* Python 3.12.16
 * Docker
 * OpenSSL (or similar) to generate public/private key pairs for the audit log (on a local development instance, if necessary).
 

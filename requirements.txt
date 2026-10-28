@@ -17,10 +17,11 @@ azure-communication-email==1.1.0
     # via register-your-data-api (pyproject.toml)
 azure-core==1.38.0
     # via azure-communication-email
-certifi==2025.6.15
+certifi==2026.10.23
     # via
     #   httpcore
     #   httpx
+    #   register-your-data-api (pyproject.toml)
     #   requests
     #   sentry-sdk
 cffi==1.17.1
