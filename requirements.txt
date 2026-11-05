@@ -21,6 +21,7 @@ certifi==2026.10.23
     # via
     #   httpcore
     #   httpx
+    #   libsuitecrm
     #   register-your-data-api (pyproject.toml)
     #   requests
     #   sentry-sdk
@@ -75,7 +76,7 @@ jinja2==3.1.6
     # via
     #   fastapi
     #   register-your-data-api (pyproject.toml)
-libsuitecrm @ git+https://github.com/iati/iati-registry-libsuitecrm@v0.5.2
+libsuitecrm @ git+https://github.com/iati/iati-registry-libsuitecrm@v0.5.3
     # via register-your-data-api (pyproject.toml)
 mako==1.3.10
     # via alembic
