@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.13] - 2026-11-05
+
+### Changed
+
+- Upgraded `libsuitecrm` to 0.5.3, which now requires `certifi>=2026.10.19` itself
+  (https://github.com/IATI/iati-registry-libsuitecrm/issues/23).
+
 ## [0.3.12] - 2026-10-28
 
 ### Fixed
